@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { products, getTotalForNetwork } from '../data/products';
+import { loadArialUnicodeFont } from '../fonts/arial-unicode';
 
 class PDFGenerator {
   constructor() {
@@ -17,6 +18,9 @@ class PDFGenerator {
     this.currentY = this.margins.top;
     this.headerHeight = 55;
     this.lightPurpleColor = [242, 237, 247];
+    
+    // Initialize Unicode font support for ₪ symbol
+    this.unicodeFontLoaded = loadArialUnicodeFont(this.doc);
   }
 
   async imageToBase64(url) {
@@ -160,6 +164,60 @@ class PDFGenerator {
     return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
+  // Helper method to render text with ₪ symbol using proper font
+  addTextWithShekel(text, x, y, options = {}) {
+    const { align = 'left', size = 11, style = 'normal' } = options;
+    
+    // Set font size first
+    this.doc.setFontSize(size);
+    
+    if (text.includes('₪')) {
+      const parts = text.split('₪');
+      let currentX = x;
+      
+      // Calculate total width for alignment
+      const totalWidth = this.doc.getTextWidth(text.replace('₪', 'NIS')); // Approximate width
+      
+      if (align === 'center') {
+        currentX = x - totalWidth / 2;
+      } else if (align === 'right') {
+        currentX = x - totalWidth;
+      }
+      
+      // Render each part
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) {
+          // Add shekel symbol
+          const currentFont = this.doc.internal.getFont().fontName;
+          
+          try {
+            // Try to use Arial for the shekel symbol
+            this.doc.setFont('arial', style);
+            this.doc.text('₪', currentX, y);
+            currentX += this.doc.getTextWidth('₪');
+          } catch {
+            // Fallback to NIS if Arial/Unicode doesn't work
+            this.doc.setFont('helvetica', style);
+            this.doc.text('NIS', currentX, y);
+            currentX += this.doc.getTextWidth('NIS');
+          }
+          
+          // Switch back to original font
+          this.doc.setFont(currentFont, style);
+        }
+        
+        // Add the text part
+        if (parts[i]) {
+          this.doc.text(parts[i], currentX, y);
+          currentX += this.doc.getTextWidth(parts[i]);
+        }
+      }
+    } else {
+      // Regular text without shekel symbol
+      this.doc.text(text, x, y, { align });
+    }
+  }
+
   drawDoubleHorizontalLine(y, startX, endX) {
     // Draw perfect double horizontal line like in Quote.pdf
     this.doc.setDrawColor(0, 0, 0);
@@ -180,9 +238,9 @@ class PDFGenerator {
       return [
         '', // Image placeholder
         product.description,
-        this.formatNumber(product.itemPrice) + ' ₪',
+        this.formatNumber(product.itemPrice),
         product.quantity.toString(),
-        this.formatNumber(product.total) + ' ₪'
+        this.formatNumber(product.total) + ' NIS' // Will be replaced with ₪ in didDrawCell
       ];
     });
 
@@ -234,8 +292,8 @@ class PDFGenerator {
         font: 'helvetica'
       },
       willDrawCell: (data) => {
-        // Prevent default cell drawing for image column
-        if (data.section === 'body' && data.column.index === 0) {
+        // Prevent default cell drawing for image column and total column (with ₪)
+        if (data.section === 'body' && (data.column.index === 0 || data.column.index === 4)) {
           return false;
         }
       },
@@ -279,6 +337,29 @@ class PDFGenerator {
             this.addProductPlaceholder(imgX, imgY, rowIndex + 1, imgWidth, imgHeight);
           }
         }
+        
+        // Add custom rendering for Total column (column 4) with ₪ symbol
+        if (data.row.section === 'body' && data.column.index === 4) {
+          const rowIndex = data.row.index;
+          const totalValue = products[rowIndex].total;
+          const totalText = this.formatNumber(totalValue) + ' ₪';
+          
+          // Draw cell background first
+          this.doc.setFillColor(255, 255, 255);
+          this.doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+          
+          // Set font properties
+          this.doc.setFontSize(11);
+          this.doc.setFont('helvetica', 'normal');
+          this.doc.setTextColor(0, 0, 0);
+          
+          // Calculate center position
+          const centerX = data.cell.x + data.cell.width / 2;
+          const centerY = data.cell.y + data.cell.height / 2 + 2;
+          
+          // Use our custom method to render text with ₪ symbol
+          this.addTextWithShekel(totalText, centerX, centerY, { align: 'center', size: 11, style: 'normal' });
+        }
       }
     });
 
@@ -309,7 +390,7 @@ class PDFGenerator {
     const totalAmountX = this.pageWidth - this.margins.right - 3;
     
     this.doc.text('Total For Network', totalLabelX, this.currentY, { align: 'right' });
-    this.doc.text(this.formatNumber(total) + ' ₪', totalAmountX, this.currentY, { align: 'right' });
+    this.addTextWithShekel(this.formatNumber(total) + ' ₪', totalAmountX, this.currentY, { align: 'right', size: 11, style: 'bold' });
     
     this.currentY += 15;
   }
