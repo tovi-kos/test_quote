@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { products, getTotalForNetwork, getProductsByCategory, getUniqueCategories, getCategoryTotal } from '../data/products';
+import { getProductsByCategory, getUniqueCategories, getCategoryTotal } from '../data/products';
 
 class PDFGenerator {
   constructor() {
@@ -15,10 +15,17 @@ class PDFGenerator {
       left: 2.99
     };
     this.currentY = this.margins.top;
-    this.headerHeight = 55;
+    this.headerHeight = 45;
     this.lightPurpleColor = [242, 237, 247];
-    this.rowHeight = 35;
-    this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 50;
+    this.rowHeight = 22;
+    this.maxProductsPerPage = 9;
+    this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 40;
+    
+    // Initialize image storage
+    this.productImages = [];
+    this.companyLogos = {};
+    this.logoDataUrl = null;
+    this.firstPageDataUrl = null;
   }
 
   async imageToBase64(url) {
@@ -56,10 +63,24 @@ class PDFGenerator {
         this.productImages.push(productImg);
       }
       
+      // Load company logos with error handling
+      const logoNames = ['aruba', 'araknis', 'cisco', 'hikvision', 'ubiquiti'];
+      for (const logoName of logoNames) {
+        try {
+          const logoImg = await this.imageToBase64(`/images/logos/${logoName}.png`);
+          if (logoImg) {
+            this.companyLogos[`logos/${logoName}.png`] = logoImg;
+          }
+        } catch (error) {
+          console.warn(`Failed to load logo ${logoName}:`, error);
+        }
+      }
+      
       console.log('Images loaded:', {
         logo: !!this.logoDataUrl,
         firstPage: !!this.firstPageDataUrl,
-        products: this.productImages.map((img, i) => `Product${i+1}: ${!!img}`)
+        products: this.productImages.map((img, i) => `Product${i+1}: ${!!img}`),
+        companyLogos: Object.keys(this.companyLogos).map(key => `${key}: ${!!this.companyLogos[key]}`)
       });
     } catch (error) {
       console.error('Error loading images:', error);
@@ -78,7 +99,7 @@ class PDFGenerator {
       this.drawFallbackHeader();
     }
     
-    this.currentY = this.headerHeight + 10;
+    this.currentY = this.headerHeight + 5;
   }
 
   drawFallbackHeader() {
@@ -162,6 +183,18 @@ class PDFGenerator {
     return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
+  formatDescription(description) {
+    // Handle both legacy string format and new object format
+    if (typeof description === 'string') {
+      // Legacy format - return as-is for autoTable to render
+      return description;
+    } else if (typeof description === 'object' && description !== null) {
+      // New object format - return empty string, we'll custom render in didDrawCell
+      return '';
+    }
+    return '';
+  }
+
   drawDoubleHorizontalLine(y, startX, endX) {
     // Draw perfect double horizontal line like in Quote.pdf
     this.doc.setDrawColor(0, 0, 0);
@@ -181,17 +214,15 @@ class PDFGenerator {
     const tableData = categoryProducts.map((product) => {
       return [
         '', // Image placeholder
-        product.description,
+        this.formatDescription(product.description),
         this.formatNumber(product.itemPrice) + ' ILS',
         product.quantity.toString(),
         this.formatNumber(product.total) + ' ILS'
       ];
     });
 
-    // Calculate available space for products on current page
-    const availableSpace = this.usableHeight - (this.currentY - this.headerHeight - this.margins.top);
-    const headerHeight = 16; // Height of table header
-    const maxRowsPerPage = Math.floor((availableSpace - headerHeight) / this.rowHeight);
+    // Use fixed maximum of 9 products per page
+    const maxRowsPerPage = this.maxProductsPerPage;
     
     let currentProductIndex = 0;
     let totalProducts = categoryProducts.length;
@@ -200,6 +231,10 @@ class PDFGenerator {
       // Determine how many rows to show on this page
       const rowsOnThisPage = Math.min(maxRowsPerPage, totalProducts - currentProductIndex);
       const productsForThisPage = tableData.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
+      
+      // Capture the current index for use in closures
+      const pageProductStartIndex = currentProductIndex;
+      const categoryProductsForThisPage = categoryProducts.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
       
       // If this is not the first page for this category, add header again
       if (currentProductIndex > 0) {
@@ -215,11 +250,11 @@ class PDFGenerator {
         margin: { left: startX, right: this.margins.right },
         tableWidth: tableWidth,
         columnStyles: {
-          0: { cellWidth: 50.23, halign: 'center' }, // Item column - narrower
-          1: { cellWidth: 89.57, halign: 'center' },   // Description - wider
-          2: { cellWidth: 27.87, halign: 'center' },  // Item Price
-          3: { cellWidth: 11.94, halign: 'center' }, // Qty
-          4: { cellWidth: 29.86, halign: 'center' }   // Total
+          0: { cellWidth: 48.8, halign: 'center' }, // Item column
+          1: { cellWidth: 87.1, halign: 'center' }, // Description - wider
+          2: { cellWidth: 27.1, halign: 'center' }, // Item Price
+          3: { cellWidth: 11.6, halign: 'center' }, // Qty
+          4: { cellWidth: 29.4, halign: 'center' }  // Total
         },
         headStyles: {
           fillColor: [255, 255, 255],
@@ -238,9 +273,9 @@ class PDFGenerator {
           textColor: [0, 0, 0],
           lineColor: [255, 255, 255],
           lineWidth: 0,
-          minCellHeight: 35,
+          minCellHeight: 22,
           valign: 'middle',
-          cellPadding: { top: 3, right: 2, bottom: 3, left: 2 }
+          cellPadding: { top: 2, right: 2, bottom: 2, left: 2 }
         },
         alternateRowStyles: {
           fillColor: [255, 255, 255]
@@ -255,14 +290,25 @@ class PDFGenerator {
           font: 'helvetica'
         },
         willDrawCell: (data) => {
-          // Prevent default cell drawing for image column
+          // Always prevent default cell drawing for image column
           if (data.section === 'body' && data.column.index === 0) {
             return false;
+          }
+          
+          // For description column, only prevent drawing if it's an object description
+          if (data.section === 'body' && data.column.index === 1) {
+            const rowIndex = data.row.index;
+            const product = categoryProductsForThisPage[rowIndex];
+            if (product && product.description && typeof product.description === 'object') {
+              return false;
+            }
           }
         },
         didDrawCell: (data) => {
           // Draw consistent double horizontal lines after every row
           if (data.column.index === 4) { // Last column
+            console.log('Row:', data.row.index, 'Y:', data.cell.y, 'Height:', data.cell.height);
+
             const lineY = data.cell.y + data.cell.height;
             const lineStartX = startX;
             const lineEndX = startX + tableWidth;
@@ -278,18 +324,18 @@ class PDFGenerator {
           
           // Add product images in the first column
           if (data.row.section === 'body' && data.column.index === 0) {
-            const rowIndex = data.row.index + currentProductIndex;
+            const rowIndex = data.row.index;
             const imgX = data.cell.x + 2;
-            const imgY = data.cell.y + 3;
-            const imgWidth = 26;
-            const imgHeight = 28;
+            const imgY = data.cell.y + 2;
+            const imgWidth = 18;
+            const imgHeight = 18;
             
             // Draw cell background first
             this.doc.setFillColor(255, 255, 255);
             this.doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
             
             // Add product image - use the global product index for image mapping
-            const globalProductIndex = productImageStartIndex + rowIndex;
+            const globalProductIndex = productImageStartIndex + pageProductStartIndex + rowIndex;
             if (this.productImages && this.productImages[globalProductIndex]) {
               try {
                 this.doc.addImage(this.productImages[globalProductIndex], 'JPEG', imgX, imgY, imgWidth, imgHeight);
@@ -301,6 +347,22 @@ class PDFGenerator {
               this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
             }
           }
+          
+          // Render description in the second column (only for object descriptions)
+          if (data.row.section === 'body' && data.column.index === 1) {
+            const rowIndex = data.row.index;
+            const product = categoryProductsForThisPage[rowIndex];
+            
+            if (product && product.description && typeof product.description === 'object') {
+              this.renderDescriptionCell(
+                product.description,
+                data.cell.x,
+                data.cell.y,
+                data.cell.width,
+                data.cell.height
+              );
+            }
+          }
         }
       });
 
@@ -309,7 +371,7 @@ class PDFGenerator {
     }
   }
 
-  addProductPlaceholder(x, y, productNum, width = 26, height = 28) {
+  addProductPlaceholder(x, y, productNum, width = 18, height = 18) {
     this.doc.setFillColor(240, 240, 240);
     this.doc.rect(x, y, width, height, 'F');
     this.doc.setDrawColor(200, 200, 200);
@@ -318,6 +380,95 @@ class PDFGenerator {
     this.doc.setFontSize(7);
     this.doc.setTextColor(150, 150, 150);
     this.doc.text(`Product ${productNum}`, x + width/2, y + height/2 + 1, { align: 'center' });
+  }
+
+  renderDescriptionCell(description, cellX, cellY, cellWidth, cellHeight) {
+    // Clear the cell background first
+    this.doc.setFillColor(255, 255, 255);
+    this.doc.rect(cellX, cellY, cellWidth, cellHeight, 'F');
+    
+    if (typeof description === 'string') {
+      // Legacy format - render as before
+      this.doc.setFontSize(11);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.setTextColor(0, 0, 0);
+      
+      const lines = description.split('\n');
+      const lineHeight = 4;
+      const totalTextHeight = lines.length * lineHeight;
+      const startY = cellY + (cellHeight - totalTextHeight) / 2 + lineHeight;
+      
+      lines.forEach((line, index) => {
+        if (line.trim()) {
+          this.doc.text(line.trim(), cellX + cellWidth / 2, startY + (index * lineHeight), { align: 'center' });
+        }
+      });
+      return;
+    }
+
+    // New object format
+    if (!description || typeof description !== 'object') return;
+    
+    const { text, comment, logo } = description;
+    const components = [];
+    
+    // Collect non-null components
+    if (text) components.push({ type: 'text', content: text });
+    if (comment) components.push({ type: 'comment', content: comment });
+    if (logo) components.push({ type: 'logo', content: logo });
+    
+    if (components.length === 0) return;
+    
+    // Calculate spacing
+    const padding = 2;
+    const availableHeight = cellHeight - (2 * padding);
+    const componentHeight = availableHeight / components.length;
+    
+    // Render each component
+    components.forEach((component, index) => {
+      const componentY = cellY + padding + (index * componentHeight);
+      const componentCenterY = componentY + (componentHeight / 2);
+      
+      if (component.type === 'text') {
+        this.doc.setFontSize(11);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(0, 0, 0);
+        this.doc.text(component.content, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+        
+      } else if (component.type === 'comment') {
+        this.doc.setFontSize(10);
+        this.doc.setFont('helvetica', 'bold');
+        this.doc.setTextColor(107, 76, 138); // Dark purple color
+        this.doc.text(component.content, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+        
+      } else if (component.type === 'logo') {
+        const logoImg = this.companyLogos && this.companyLogos[component.content];
+        if (logoImg) {
+          try {
+            const logoWidth = Math.min(30, cellWidth - 10);
+            const logoHeight = 8;
+            const logoX = cellX + (cellWidth - logoWidth) / 2;
+            const logoY = componentCenterY - (logoHeight / 2);
+            
+            this.doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+          } catch (e) {
+            console.error(`Error adding company logo ${component.content}:`, e);
+            // Fallback to text
+            this.doc.setFontSize(9);
+            this.doc.setFont('helvetica', 'italic');
+            this.doc.setTextColor(107, 76, 138);
+            this.doc.text(component.content.replace('logos/', '').replace('.png', ''), cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+          }
+        } else {
+          // Fallback to text when logo is not available
+          this.doc.setFontSize(9);
+          this.doc.setFont('helvetica', 'italic');
+          this.doc.setTextColor(107, 76, 138);
+          const logoName = component.content.replace('logos/', '').replace('.png', '');
+          this.doc.text(logoName, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+        }
+      }
+    });
   }
 
   addCategoryTotalRow(categoryName, categoryTotal) {
