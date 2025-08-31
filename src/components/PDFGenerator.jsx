@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { products, getTotalForNetwork } from '../data/products';
+import { products, getTotalForNetwork, getProductsByCategory, getUniqueCategories, getCategoryTotal } from '../data/products';
 
 class PDFGenerator {
   constructor() {
@@ -17,6 +17,8 @@ class PDFGenerator {
     this.currentY = this.margins.top;
     this.headerHeight = 55;
     this.lightPurpleColor = [242, 237, 247];
+    this.rowHeight = 35;
+    this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 50;
   }
 
   async imageToBase64(url) {
@@ -171,118 +173,140 @@ class PDFGenerator {
     this.doc.line(startX, y + 1, endX, y + 1);
   }
 
-  addProductTable() {
+  addProductTable(categoryProducts, categoryName, productImageStartIndex = 0) {
     const startX = this.margins.left;
     const tableWidth = this.pageWidth - this.margins.left - this.margins.right;
     
     // Create table data with properly formatted numbers and correct currency
-    const tableData = products.map((product) => {
+    const tableData = categoryProducts.map((product) => {
       return [
         '', // Image placeholder
         product.description,
-        this.formatNumber(product.itemPrice) + ' ₪',
+        this.formatNumber(product.itemPrice) + ' ILS',
         product.quantity.toString(),
-        this.formatNumber(product.total) + ' ₪'
+        this.formatNumber(product.total) + ' ILS'
       ];
     });
 
-    // Configure autoTable with exact styling from Quote.pdf
-    autoTable(this.doc, {
-      head: [['Item', 'Description', 'Item Price', 'Qty', 'Total']],
-      body: tableData,
-      startY: this.currentY,
-      margin: { left: startX, right: this.margins.right },
-      tableWidth: tableWidth,
-      columnStyles: {
-        0: { cellWidth: 50.23, halign: 'center' }, // Item column - narrower
-        1: { cellWidth: 89.57, halign: 'center' },   // Description - wider
-        2: { cellWidth: 27.87, halign: 'center' },  // Item Price
-        3: { cellWidth: 11.94, halign: 'center' }, // Qty
-        4: { cellWidth: 29.86, halign: 'center' }   // Total
-      },
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        fontSize: 11,
-        font: 'helvetica',
-        lineColor: [255, 255, 255],
-        lineWidth: 0,
-        cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
-        halign: 'center'
-      },
-      bodyStyles: {
-        fontSize: 11,
-        font: 'helvetica',
-        textColor: [0, 0, 0],
-        lineColor: [255, 255, 255],
-        lineWidth: 0,
-        minCellHeight: 35,
-        valign: 'middle',
-        cellPadding: { top: 3, right: 2, bottom: 3, left: 2 }
-      },
-      alternateRowStyles: {
-        fillColor: [255, 255, 255]
-      },
-      theme: 'plain',
-      showHead: 'firstPage',
-      styles: {
-        overflow: 'linebreak',
-        cellWidth: 'wrap',
-        halign: 'center',
-        valign: 'middle',
-        font: 'helvetica'
-      },
-      willDrawCell: (data) => {
-        // Prevent default cell drawing for image column
-        if (data.section === 'body' && data.column.index === 0) {
-          return false;
-        }
-      },
-      didDrawCell: (data) => {
-        // Draw consistent double horizontal lines after every row
-        if (data.column.index === 4) { // Last column
-          const lineY = data.cell.y + data.cell.height;
-          const lineStartX = startX;
-          const lineEndX = startX + tableWidth;
-          
-          if (data.row.section === 'head') {
-            // Double line after header
-            this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
-          } else if (data.row.section === 'body') {
-            // Double line after each body row
-            this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
-          }
-        }
-        
-        // Add product images in the first column
-        if (data.row.section === 'body' && data.column.index === 0) {
-          const rowIndex = data.row.index;
-          const imgX = data.cell.x + 2;
-          const imgY = data.cell.y + 3;
-          const imgWidth = 26;
-          const imgHeight = 28;
-          
-          // Draw cell background first
-          this.doc.setFillColor(255, 255, 255);
-          this.doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-          
-          // Add product image
-          if (this.productImages && this.productImages[rowIndex]) {
-            try {
-              this.doc.addImage(this.productImages[rowIndex], 'JPEG', imgX, imgY, imgWidth, imgHeight);
-            } catch (e) {
-              console.error(`Error adding product image ${rowIndex + 1}:`, e);
-              this.addProductPlaceholder(imgX, imgY, rowIndex + 1, imgWidth, imgHeight);
-            }
-          } else {
-            this.addProductPlaceholder(imgX, imgY, rowIndex + 1, imgWidth, imgHeight);
-          }
-        }
+    // Calculate available space for products on current page
+    const availableSpace = this.usableHeight - (this.currentY - this.headerHeight - this.margins.top);
+    const headerHeight = 16; // Height of table header
+    const maxRowsPerPage = Math.floor((availableSpace - headerHeight) / this.rowHeight);
+    
+    let currentProductIndex = 0;
+    let totalProducts = categoryProducts.length;
+    
+    while (currentProductIndex < totalProducts) {
+      // Determine how many rows to show on this page
+      const rowsOnThisPage = Math.min(maxRowsPerPage, totalProducts - currentProductIndex);
+      const productsForThisPage = tableData.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
+      
+      // If this is not the first page for this category, add header again
+      if (currentProductIndex > 0) {
+        this.doc.addPage();
+        this.addSectionHeader(categoryName);
       }
-    });
+      
+      // Configure autoTable with exact styling from Quote.pdf
+      autoTable(this.doc, {
+        head: [['Item', 'Description', 'Item Price', 'Qty', 'Total']],
+        body: productsForThisPage,
+        startY: this.currentY,
+        margin: { left: startX, right: this.margins.right },
+        tableWidth: tableWidth,
+        columnStyles: {
+          0: { cellWidth: 50.23, halign: 'center' }, // Item column - narrower
+          1: { cellWidth: 89.57, halign: 'center' },   // Description - wider
+          2: { cellWidth: 27.87, halign: 'center' },  // Item Price
+          3: { cellWidth: 11.94, halign: 'center' }, // Qty
+          4: { cellWidth: 29.86, halign: 'center' }   // Total
+        },
+        headStyles: {
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          fontSize: 11,
+          font: 'helvetica',
+          lineColor: [255, 255, 255],
+          lineWidth: 0,
+          cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
+          halign: 'center'
+        },
+        bodyStyles: {
+          fontSize: 11,
+          font: 'helvetica',
+          textColor: [0, 0, 0],
+          lineColor: [255, 255, 255],
+          lineWidth: 0,
+          minCellHeight: 35,
+          valign: 'middle',
+          cellPadding: { top: 3, right: 2, bottom: 3, left: 2 }
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255]
+        },
+        theme: 'plain',
+        showHead: 'firstPage',
+        styles: {
+          overflow: 'linebreak',
+          cellWidth: 'wrap',
+          halign: 'center',
+          valign: 'middle',
+          font: 'helvetica'
+        },
+        willDrawCell: (data) => {
+          // Prevent default cell drawing for image column
+          if (data.section === 'body' && data.column.index === 0) {
+            return false;
+          }
+        },
+        didDrawCell: (data) => {
+          // Draw consistent double horizontal lines after every row
+          if (data.column.index === 4) { // Last column
+            const lineY = data.cell.y + data.cell.height;
+            const lineStartX = startX;
+            const lineEndX = startX + tableWidth;
+            
+            if (data.row.section === 'head') {
+              // Double line after header
+              this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
+            } else if (data.row.section === 'body') {
+              // Double line after each body row
+              this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
+            }
+          }
+          
+          // Add product images in the first column
+          if (data.row.section === 'body' && data.column.index === 0) {
+            const rowIndex = data.row.index + currentProductIndex;
+            const imgX = data.cell.x + 2;
+            const imgY = data.cell.y + 3;
+            const imgWidth = 26;
+            const imgHeight = 28;
+            
+            // Draw cell background first
+            this.doc.setFillColor(255, 255, 255);
+            this.doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+            
+            // Add product image - use the global product index for image mapping
+            const globalProductIndex = productImageStartIndex + rowIndex;
+            if (this.productImages && this.productImages[globalProductIndex]) {
+              try {
+                this.doc.addImage(this.productImages[globalProductIndex], 'JPEG', imgX, imgY, imgWidth, imgHeight);
+              } catch (e) {
+                console.error(`Error adding product image ${globalProductIndex + 1}:`, e);
+                this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
+              }
+            } else {
+              this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
+            }
+          }
+        }
+      });
 
-    this.currentY = this.doc.lastAutoTable.finalY + 10;
+      this.currentY = this.doc.lastAutoTable.finalY + 10;
+      currentProductIndex += rowsOnThisPage;
+    }
   }
 
   addProductPlaceholder(x, y, productNum, width = 26, height = 28) {
@@ -296,9 +320,7 @@ class PDFGenerator {
     this.doc.text(`Product ${productNum}`, x + width/2, y + height/2 + 1, { align: 'center' });
   }
 
-  addTotalRow() {
-    const total = getTotalForNetwork();
-    
+  addCategoryTotalRow(categoryName, categoryTotal) {
     // Position aligned with table - exact positioning from Quote.pdf
     this.doc.setFontSize(11);
     this.doc.setFont('helvetica', 'bold');
@@ -308,8 +330,8 @@ class PDFGenerator {
     const totalLabelX = this.pageWidth - this.margins.right - 55;
     const totalAmountX = this.pageWidth - this.margins.right - 3;
     
-    this.doc.text('Total For Network', totalLabelX, this.currentY, { align: 'right' });
-    this.doc.text(this.formatNumber(total) + ' ₪', totalAmountX, this.currentY, { align: 'right' });
+    this.doc.text(`Total For ${categoryName}`, totalLabelX, this.currentY, { align: 'right' });
+    this.doc.text(this.formatNumber(categoryTotal) + ' ₪', totalAmountX, this.currentY, { align: 'right' });
     
     this.currentY += 15;
   }
@@ -353,17 +375,40 @@ class PDFGenerator {
       this.addFirstPage();
       console.log('First page added');
       
-      // Add Network section
-      this.addSectionHeader('Network');
-      console.log('Section header added');
+      // Get unique categories
+      const categories = getUniqueCategories();
+      console.log('Categories found:', categories);
       
-      // Add product table
-      this.addProductTable();
-      console.log('Product table added');
+      // Track global product index for image mapping
+      let globalProductIndex = 0;
       
-      // Add total
-      this.addTotalRow();
-      console.log('Total row added');
+      // Generate sections for each category
+      for (const category of categories) {
+        const categoryProducts = getProductsByCategory(category);
+        const categoryTotal = getCategoryTotal(category);
+        
+        console.log(`Processing category: ${category} with ${categoryProducts.length} products`);
+        
+        // Add category section header
+        this.addSectionHeader(category);
+        
+        // Add product table for this category with proper image indexing
+        this.addProductTable(categoryProducts, category, globalProductIndex);
+        
+        // Add category total
+        this.addCategoryTotalRow(category, categoryTotal);
+        
+        // Update global product index for next category
+        globalProductIndex += categoryProducts.length;
+        
+        // Add new page for next category (except for the last one)
+        if (category !== categories[categories.length - 1]) {
+          this.doc.addPage();
+          this.currentY = this.margins.top;
+        }
+        
+        console.log(`Category ${category} completed`);
+      }
       
       // Add footer to all pages except the first
       const totalPages = this.doc.internal.getNumberOfPages();
