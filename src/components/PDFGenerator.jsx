@@ -223,11 +223,14 @@ class PDFGenerator {
     }
   }
 
-  drawSingleHorizontalLine(y, startX, endX) {
-    // Draw single consistent horizontal line
-    this.doc.setDrawColor(200, 200, 200); // Light gray like the alternating rows
-    this.doc.setLineWidth(0.3);
-    this.doc.line(startX, y, endX, y);
+  drawDoubleHorizontalLine(y, startX, endX) {
+    // Draw double horizontal lines with 3px spacing
+    this.doc.setDrawColor(0, 0, 0); // Black color for lines
+    this.doc.setLineWidth(0.2);
+    // First line - positioned slightly higher
+    this.doc.line(startX, y - 1, endX, y - 1);
+    // Second line with 3px spacing
+    this.doc.line(startX, y - 0.5, endX, y - 0.5);
   }
 
   addProductTable(categoryProducts, categoryName) {
@@ -301,7 +304,7 @@ class PDFGenerator {
           textColor: [0, 0, 0],
           lineColor: [255, 255, 255],
           lineWidth: 0,
-          minCellHeight: 19,
+          minCellHeight: 23,
           valign: 'middle',
           cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
           fillColor: [255, 255, 255]
@@ -333,11 +336,11 @@ class PDFGenerator {
               const lineEndX = startX + tableWidth;
               
               if (data.row.section === 'head') {
-                // Single line after header
-                this.drawSingleHorizontalLine(lineY, lineStartX, lineEndX);
+                // Double line after header
+                this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
               } else if (data.row.section === 'body') {
-                // Single line after each body row
-                this.drawSingleHorizontalLine(lineY, lineStartX, lineEndX);
+                // Double line after each body row
+                this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
               }
               
               drawnLines.add(rowKey);
