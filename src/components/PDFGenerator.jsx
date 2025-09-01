@@ -22,10 +22,10 @@ class PDFGenerator {
     this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 40;
     
     // Initialize image storage
-    this.productImages = [];
     this.companyLogos = {};
     this.logoDataUrl = null;
     this.firstPageDataUrl = null;
+    this.flowerDataUrl = null;
   }
 
   async imageToBase64(url) {
@@ -60,24 +60,9 @@ class PDFGenerator {
       // Load first page
       this.firstPageDataUrl = await this.imageToBase64('/images/firstPage.jpeg');
       
-      // Load product images
-      this.productImages = [];
-      const productImagePaths = [
-        '/images/Product1.jpg',
-        '/images/Product2.jpg', 
-        '/images/Product3.JPEG',
-        '/images/Product4.jpg',
-        '/images/Product5.jpg'
-      ];
-      
-      for (let i = 0; i < productImagePaths.length; i++) {
-        const imagePath = productImagePaths[i];
-        const productImg = await this.imageToBase64(imagePath);
-        this.productImages.push(productImg);
-        if (!productImg) {
-          console.warn(`Product image ${i + 1} failed to load: ${imagePath}`);
-        }
-      }
+      // Load flower image for final page and ITEM column
+      this.flowerDataUrl = await this.imageToBase64('/images/ff.jpg');
+      console.log('Flower image loaded:', this.flowerDataUrl ? 'SUCCESS' : 'FAILED');
       
       // Load company logos with error handling
       const logoNames = ['aruba', 'araknis', 'cisco', 'hikvision', 'ubiquiti'];
@@ -90,12 +75,6 @@ class PDFGenerator {
         } catch (error) {
           console.warn(`Failed to load logo ${logoName}:`, error);
         }
-      }
-      
-      const loadedImages = this.productImages.filter(img => img !== null).length;
-      console.log(`Images loaded: ${loadedImages}/5 product images`);
-      if (loadedImages < 5) {
-        console.warn(`Warning: Only ${loadedImages}/5 product images loaded successfully`);
       }
     } catch (error) {
       console.error('Error loading images:', error);
@@ -240,7 +219,7 @@ class PDFGenerator {
     this.doc.line(startX, y + 1, endX, y + 1);
   }
 
-  addProductTable(categoryProducts, categoryName, productImageStartIndex = 0) {
+  addProductTable(categoryProducts, categoryName) {
     const startX = this.margins.left;
     const tableWidth = this.pageWidth - this.margins.left - this.margins.right;
     
@@ -325,20 +304,7 @@ class PDFGenerator {
           font: 'helvetica'
         },
         willDrawCell: (data) => {
-          // Always prevent default cell drawing for image column
-          if (data.section === 'body' && data.column.index === 0) {
-            return false;
-          }
-          
-          // For description column, only prevent drawing if it's an object description
-          if (data.section === 'body' && data.column.index === 1) {
-            const rowIndex = data.row.index;
-            const product = categoryProductsForThisPage[rowIndex];
-            if (product && product.description && typeof product.description === 'object') {
-              return false;
-            }
-          }
-          
+          // Let all cells render normally (same approach that fixed images)
           return true;
         },
         didDrawCell: (data) => {
@@ -358,34 +324,28 @@ class PDFGenerator {
             }
           }
           
-          // Add product images in the first column
+          // Add flower images in the first column
           if (data.row.section === 'body' && data.column.index === 0) {
-            const rowIndex = data.row.index;
             const imgX = data.cell.x + 2;
             const imgY = data.cell.y + 2;
             const imgWidth = 18;
             const imgHeight = 18;
             
-            // Draw cell background first
-            this.doc.setFillColor(255, 255, 255);
-            this.doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+            console.log('Attempting to add flower image to cell:', data.cell.x, data.cell.y);
             
-            // Add product image - use the global product index for image mapping
-            const globalProductIndex = productImageStartIndex + pageProductStartIndex + rowIndex;
-            
-            if (this.productImages && this.productImages[globalProductIndex]) {
-              const imageData = this.productImages[globalProductIndex];
-              
+            // Add flower image for all items (using same approach as final page)
+            if (this.flowerDataUrl) {
               try {
-                this.doc.addImage(imageData, 'JPEG', imgX, imgY, imgWidth, imgHeight);
-                console.log(`Image added for product ${globalProductIndex + 1}`);
+                console.log('Flower image data available, adding to PDF...');
+                this.doc.addImage(this.flowerDataUrl, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+                console.log('Flower image successfully added to table cell');
               } catch (e) {
-                console.error(`Failed to add image for product ${globalProductIndex + 1}:`, e.message);
-                this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
+                console.error('Failed to add flower image to table cell:', e.message);
+                this.addProductPlaceholder(imgX, imgY, 'Flower', imgWidth, imgHeight);
               }
             } else {
-              console.log(`No image available for product ${globalProductIndex + 1} (index ${globalProductIndex})`);
-              this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
+              console.error('No flower image available - flowerDataUrl is:', this.flowerDataUrl);
+              this.addProductPlaceholder(imgX, imgY, 'Flower', imgWidth, imgHeight);
             }
           }
           
@@ -428,9 +388,7 @@ class PDFGenerator {
   }
 
   renderDescriptionCell(description, cellX, cellY, cellWidth, cellHeight) {
-    // Clear the cell background first
-    this.doc.setFillColor(255, 255, 255);
-    this.doc.rect(cellX, cellY, cellWidth, cellHeight, 'F');
+    // No need to clear background - let autoTable handle cell rendering
     
     if (typeof description === 'string') {
       // Legacy format - render as before
@@ -559,6 +517,35 @@ class PDFGenerator {
     this.doc.text(`Page - ${pageNum} Of ${totalPages}`, 105, footerY + 18, { align: 'center' });
   }
 
+  addFinalPage() {
+    // Add a new page for the final "Best of luck" message
+    this.doc.addPage();
+    
+    // Center the content vertically and horizontally
+    const centerX = this.pageWidth / 2;
+    const centerY = this.pageHeight / 2;
+    
+    // Add "Best of luck" text
+    this.doc.setFontSize(32);
+    this.doc.setFont('Georgia', 'bold');
+    this.doc.setTextColor(107, 76, 138); // Purple color matching brand
+    this.doc.text('Best of luck', centerX, centerY - 40, { align: 'center' });
+    
+    // Add flower image below the text if available
+    if (this.flowerDataUrl) {
+      try {
+        const imgWidth = 60;
+        const imgHeight = 60;
+        const imgX = centerX - (imgWidth / 2);
+        const imgY = centerY - 10;
+        
+        this.doc.addImage(this.flowerDataUrl, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+      } catch (e) {
+        console.error('Failed to add flower image:', e);
+      }
+    }
+  }
+
   async generatePDF() {
     try {
       console.log('Starting PDF generation...');
@@ -572,19 +559,6 @@ class PDFGenerator {
       // Get unique categories
       const categories = getUniqueCategories();
       
-      // Debug: Count total products vs images
-      let totalProductCount = 0;
-      categories.forEach(category => {
-        const categoryProducts = getProductsByCategory(category);
-        totalProductCount += categoryProducts.length;
-      });
-      
-      if (totalProductCount > this.productImages.length) {
-        console.warn(`WARNING: ${totalProductCount} products but only ${this.productImages.length} images available`);
-      }
-      
-      // Track global product index for image mapping
-      let globalProductIndex = 0;
       
       // Generate sections for each category
       for (let catIndex = 0; catIndex < categories.length; catIndex++) {
@@ -594,10 +568,8 @@ class PDFGenerator {
         const categoryTotal = getCategoryTotal(category);
         
         this.addSectionHeader(category);
-        this.addProductTable(categoryProducts, category, globalProductIndex);
+        this.addProductTable(categoryProducts, category);
         this.addCategoryTotalRow(category, categoryTotal);
-        
-        globalProductIndex += categoryProducts.length;
         
         if (catIndex < categories.length - 1) {
           this.doc.addPage();
@@ -605,11 +577,14 @@ class PDFGenerator {
         }
       }
       
-      // Add footer to all pages except the first
+      // Add final "Best of luck" page
+      this.addFinalPage();
+      
+      // Add footer to all pages except the first and final page
       const totalPages = this.doc.internal.getNumberOfPages();
-      for (let i = 2; i <= totalPages; i++) {
+      for (let i = 2; i <= totalPages - 1; i++) {
         this.doc.setPage(i);
-        this.addFooter(i - 1, totalPages - 1);
+        this.addFooter(i - 1, totalPages - 2);
       }
       console.log('Footers added');
       
