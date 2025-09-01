@@ -32,18 +32,22 @@ class PDFGenerator {
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
+      
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg'));
+        const base64 = canvas.toDataURL('image/jpeg');
+        resolve(base64);
       };
-      img.onerror = () => {
-        console.log(`Failed to load image: ${url}`);
+      
+      img.onerror = (error) => {
+        console.error(`Failed to load image: ${url}`);
         resolve(null);
       };
+      
       img.src = url;
     });
   }
@@ -58,9 +62,21 @@ class PDFGenerator {
       
       // Load product images
       this.productImages = [];
-      for (let i = 1; i <= 5; i++) {
-        const productImg = await this.imageToBase64(`/images/Product${i}.jpg`);
+      const productImagePaths = [
+        '/images/Product1.jpg',
+        '/images/Product2.jpg', 
+        '/images/Product3.JPEG',
+        '/images/Product4.jpg',
+        '/images/Product5.jpg'
+      ];
+      
+      for (let i = 0; i < productImagePaths.length; i++) {
+        const imagePath = productImagePaths[i];
+        const productImg = await this.imageToBase64(imagePath);
         this.productImages.push(productImg);
+        if (!productImg) {
+          console.warn(`Product image ${i + 1} failed to load: ${imagePath}`);
+        }
       }
       
       // Load company logos with error handling
@@ -76,12 +92,11 @@ class PDFGenerator {
         }
       }
       
-      console.log('Images loaded:', {
-        logo: !!this.logoDataUrl,
-        firstPage: !!this.firstPageDataUrl,
-        products: this.productImages.map((img, i) => `Product${i+1}: ${!!img}`),
-        companyLogos: Object.keys(this.companyLogos).map(key => `${key}: ${!!this.companyLogos[key]}`)
-      });
+      const loadedImages = this.productImages.filter(img => img !== null).length;
+      console.log(`Images loaded: ${loadedImages}/5 product images`);
+      if (loadedImages < 5) {
+        console.warn(`Warning: Only ${loadedImages}/5 product images loaded successfully`);
+      }
     } catch (error) {
       console.error('Error loading images:', error);
     }
@@ -165,13 +180,12 @@ class PDFGenerator {
   addSectionHeader(sectionName) {
     this.addHeader();
     
-    // Light purple background for section header - full width
-    this.doc.setFillColor(...this.lightPurpleColor);
-    this.doc.rect(0, this.currentY, this.pageWidth, 12, 'F');
+    // Striped background for section header - full width
+    this.addStripedBackground(0, this.currentY, this.pageWidth, 12);
     
     // Section title with exact font size from Quote.pdf
     this.doc.setFontSize(28);
-    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFont('Georgia', 'normal');
     this.doc.setTextColor(0, 0, 0);
     this.doc.text(sectionName, 105, this.currentY + 8.5, { align: 'center' });
     
@@ -195,6 +209,26 @@ class PDFGenerator {
     return '';
   }
 
+  addStripedBackground(x, y, width, height) {
+    // Draw white background first
+    this.doc.setFillColor(255, 255, 255);
+    this.doc.rect(x, y, width, height, 'F');
+    
+    // Set line properties for stripes
+   this.doc.setDrawColor(229, 219, 228); // #E5DBE4 - soft pink/lilac tone
+    this.doc.setLineWidth(0.1); // Slightly thicker for better visibility
+    
+    // Calculate line spacing - 2mm for proper density in 12mm height
+    const lineSpacing = 0.3;
+    
+    // Start first line near the top of the rectangle
+    let currentY = y + 1;
+    while (currentY < y + height - 1) {
+      this.doc.line(x, currentY, x + width, currentY);
+      currentY += lineSpacing;
+    }
+  }
+
   drawDoubleHorizontalLine(y, startX, endX) {
     // Draw perfect double horizontal line like in Quote.pdf
     this.doc.setDrawColor(0, 0, 0);
@@ -211,7 +245,7 @@ class PDFGenerator {
     const tableWidth = this.pageWidth - this.margins.left - this.margins.right;
     
     // Create table data with properly formatted numbers and correct currency
-    const tableData = categoryProducts.map((product) => {
+    const tableData = categoryProducts.map((product, index) => {
       return [
         '', // Image placeholder
         this.formatDescription(product.description),
@@ -243,7 +277,8 @@ class PDFGenerator {
       }
       
       // Configure autoTable with exact styling from Quote.pdf
-      autoTable(this.doc, {
+      try {
+        autoTable(this.doc, {
         head: [['Item', 'Description', 'Item Price', 'Qty', 'Total']],
         body: productsForThisPage,
         startY: this.currentY,
@@ -303,11 +338,12 @@ class PDFGenerator {
               return false;
             }
           }
+          
+          return true;
         },
         didDrawCell: (data) => {
           // Draw consistent double horizontal lines after every row
           if (data.column.index === 4) { // Last column
-            console.log('Row:', data.row.index, 'Y:', data.cell.y, 'Height:', data.cell.height);
 
             const lineY = data.cell.y + data.cell.height;
             const lineStartX = startX;
@@ -336,14 +372,19 @@ class PDFGenerator {
             
             // Add product image - use the global product index for image mapping
             const globalProductIndex = productImageStartIndex + pageProductStartIndex + rowIndex;
+            
             if (this.productImages && this.productImages[globalProductIndex]) {
+              const imageData = this.productImages[globalProductIndex];
+              
               try {
-                this.doc.addImage(this.productImages[globalProductIndex], 'JPEG', imgX, imgY, imgWidth, imgHeight);
+                this.doc.addImage(imageData, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+                console.log(`Image added for product ${globalProductIndex + 1}`);
               } catch (e) {
-                console.error(`Error adding product image ${globalProductIndex + 1}:`, e);
+                console.error(`Failed to add image for product ${globalProductIndex + 1}:`, e.message);
                 this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
               }
             } else {
+              console.log(`No image available for product ${globalProductIndex + 1} (index ${globalProductIndex})`);
               this.addProductPlaceholder(imgX, imgY, globalProductIndex + 1, imgWidth, imgHeight);
             }
           }
@@ -364,8 +405,12 @@ class PDFGenerator {
             }
           }
         }
-      });
-
+        });
+        
+      } catch (error) {
+        console.error('AutoTable Error:', error.message);
+        throw error;
+      }
       this.currentY = this.doc.lastAutoTable.finalY + 10;
       currentProductIndex += rowsOnThisPage;
     }
@@ -482,7 +527,7 @@ class PDFGenerator {
     const totalAmountX = this.pageWidth - this.margins.right - 3;
     
     this.doc.text(`Total For ${categoryName}`, totalLabelX, this.currentY, { align: 'right' });
-    this.doc.text(this.formatNumber(categoryTotal) + ' ₪', totalAmountX, this.currentY, { align: 'right' });
+    this.doc.text(this.formatNumber(categoryTotal) + ' ILS', totalAmountX, this.currentY, { align: 'right' });
     
     this.currentY += 15;
   }
@@ -490,28 +535,28 @@ class PDFGenerator {
   addFooter(pageNum, totalPages) {
     const footerY = this.pageHeight - 23;
     
-    // Add light purple background ONLY for the details row
+    // Add striped background ONLY for the details row
     const detailsBgX = 0; // Full page width
     const detailsBgWidth = this.pageWidth;
     const detailsBgHeight = 12; // Only cover the details line
     
-    this.doc.setFillColor(...this.lightPurpleColor);
-    this.doc.rect(detailsBgX, footerY - 2, detailsBgWidth, detailsBgHeight, 'F');
+    this.addStripedBackground(detailsBgX, footerY - 2, detailsBgWidth, detailsBgHeight);
     
     // Footer details text
     this.doc.setFontSize(11);
-    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFont('Georgia', 'normal');
     this.doc.setTextColor(0, 0, 0);
     
-    // Quote details positioned exactly as in Quote.pdf
-    this.doc.text('QUOTE#  52400272', this.margins.left + 2, footerY + 3);
-    this.doc.text('Prepared by: Sim Shapiro', 75, footerY + 3);
-    this.doc.text('Date: 10.02.2025', 130, footerY + 3);
-    this.doc.text('Modified: 07.07.2025', 170, footerY + 3);
+    // Quote details centered in the middle of the background
+    const detailsY = footerY + 5; // Center vertically in the 12mm height background
+    this.doc.text('QUOTE#  52400272', 25, detailsY, { align: 'center' });
+    this.doc.text('Prepared by: Sim Shapiro', 75, detailsY, { align: 'center' });
+    this.doc.text('Date: 10.02.2025', 130, detailsY, { align: 'center' });
+    this.doc.text('Modified: 07.07.2025', 185, detailsY, { align: 'center' });
     
-    // Page number centered, BELOW the details (no background)
+    // Page number centered, with more space below the details
     this.doc.setFontSize(11);
-    this.doc.text(`Page - ${pageNum} Of ${totalPages}`, 105, footerY + 13, { align: 'center' });
+    this.doc.text(`Page - ${pageNum} Of ${totalPages}`, 105, footerY + 18, { align: 'center' });
   }
 
   async generatePDF() {
@@ -520,45 +565,44 @@ class PDFGenerator {
       
       // Load images first
       await this.loadImages();
-      console.log('Images processed');
       
       // Add first page
       this.addFirstPage();
-      console.log('First page added');
       
       // Get unique categories
       const categories = getUniqueCategories();
-      console.log('Categories found:', categories);
+      
+      // Debug: Count total products vs images
+      let totalProductCount = 0;
+      categories.forEach(category => {
+        const categoryProducts = getProductsByCategory(category);
+        totalProductCount += categoryProducts.length;
+      });
+      
+      if (totalProductCount > this.productImages.length) {
+        console.warn(`WARNING: ${totalProductCount} products but only ${this.productImages.length} images available`);
+      }
       
       // Track global product index for image mapping
       let globalProductIndex = 0;
       
       // Generate sections for each category
-      for (const category of categories) {
+      for (let catIndex = 0; catIndex < categories.length; catIndex++) {
+        const category = categories[catIndex];
+        
         const categoryProducts = getProductsByCategory(category);
         const categoryTotal = getCategoryTotal(category);
         
-        console.log(`Processing category: ${category} with ${categoryProducts.length} products`);
-        
-        // Add category section header
         this.addSectionHeader(category);
-        
-        // Add product table for this category with proper image indexing
         this.addProductTable(categoryProducts, category, globalProductIndex);
-        
-        // Add category total
         this.addCategoryTotalRow(category, categoryTotal);
         
-        // Update global product index for next category
         globalProductIndex += categoryProducts.length;
         
-        // Add new page for next category (except for the last one)
-        if (category !== categories[categories.length - 1]) {
+        if (catIndex < categories.length - 1) {
           this.doc.addPage();
           this.currentY = this.margins.top;
         }
-        
-        console.log(`Category ${category} completed`);
       }
       
       // Add footer to all pages except the first
@@ -572,10 +616,10 @@ class PDFGenerator {
       // Download the PDF
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       this.doc.save(`Quote_${timestamp}.pdf`);
-      console.log('PDF saved successfully');
+      console.log('PDF generated successfully');
       
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('PDF generation failed:', error.message);
       alert('Error generating PDF. Check console for details.');
     }
   }

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #0066cc;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #005999;
+        }
+        .console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .image-check {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .image-item {
+            border: 2px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .image-item img {
+            max-width: 100px;
+            max-height: 100px;
+            display: block;
+            margin: 0 auto 5px;
+        }
+        .image-item.loaded {
+            border-color: #4CAF50;
+            background: #f0fff0;
+        }
+        .image-item.failed {
+            border-color: #f44336;
+            background: #fff0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ PDF Image Debug Test</h1>
+        
+        <div class="debug-info">
+            <h3>📋 Debug Instructions:</h3>
+            <ol>
+                <li><strong>Test Image Loading:</strong> Click "Test Image Loading" to verify all images can be loaded</li>
+                <li><strong>Generate PDF:</strong> Click "Generate PDF with Debug" to create PDF with extensive logging</li>
+                <li><strong>Check Console:</strong> Open browser DevTools (F12) and check the Console tab for detailed logs</li>
+                <li><strong>Monitor Network:</strong> Check the Network tab to see if images are being loaded successfully</li>
+            </ol>
+        </div>
+        
+        <div class="image-check" id="imageCheck">
+            <h3>🖼️ Image Loading Test:</h3>
+        </div>
+        
+        <button onclick="testImageLoading()">🔍 Test Image Loading</button>
+        <button onclick="generateDebugPDF()">📄 Generate PDF with Debug</button>
+        <button onclick="clearConsole()">🧹 Clear Console Output</button>
+        
+        <div id="consoleOutput" class="console-output" style="display: none;">
+            <h3>Console Output:</h3>
+            <div id="consoleContent"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import PDFGenerator from './src/components/PDFGenerator.jsx';
+        
+        // Override console methods to capture output
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const originalGroup = console.group;
+        const originalGroupEnd = console.groupEnd;
+        
+        let consoleOutput = [];
+        let groupLevel = 0;
+        
+        function captureConsole(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const indent = '  '.repeat(groupLevel);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            consoleOutput.push(`[${timestamp}] ${type.toUpperCase()}: ${indent}${message}`);
+            updateConsoleDisplay();
+            
+            // Call original console method
+            if (type === 'log') originalLog(...args);
+            else if (type === 'error') originalError(...args);
+            else if (type === 'warn') originalWarn(...args);
+        }
+        
+        console.log = (...args) => captureConsole('log', ...args);
+        console.error = (...args) => captureConsole('error', ...args);
+        console.warn = (...args) => captureConsole('warn', ...args);
+        console.group = (...args) => {
+            captureConsole('group', ...args);
+            groupLevel++;
+            originalGroup(...args);
+        };
+        console.groupEnd = () => {
+            groupLevel = Math.max(0, groupLevel - 1);
+            captureConsole('groupend', 'Group ended');
+            originalGroupEnd();
+        };
+        
+        function updateConsoleDisplay() {
+            const consoleContent = document.getElementById('consoleContent');
+            const consoleOutputDiv = document.getElementById('consoleOutput');
+            consoleContent.innerHTML = consoleOutput.map(line => 
+                `<div style="margin: 2px 0; ${line.includes('ERROR:') ? 'color: #ff6b6b;' : 
+                line.includes('WARN:') ? 'color: #ffa726;' : 
+                line.includes('GROUP:') ? 'color: #42a5f5; font-weight: bold;' : ''}">${line}</div>`
+            ).join('');
+            consoleOutputDiv.style.display = 'block';
+            consoleContent.scrollTop = consoleContent.scrollHeight;
+        }
+        
+        window.testImageLoading = async function() {
+            console.log('🧪 Starting Image Loading Test...');
+            const imageCheck = document.getElementById('imageCheck');
+            imageCheck.innerHTML = '<h3>🖼️ Image Loading Test:</h3>';
+            
+            const imagePaths = [
+                '/images/LOGO.jpeg',
+                '/images/firstPage.jpeg',
+                '/images/Product1.jpg',
+                '/images/Product2.jpg',
+                '/images/Product3.JPEG',
+                '/images/Product4.jpg',
+                '/images/Product5.jpg'
+            ];
+            
+            for (const imagePath of imagePaths) {
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+                imageItem.innerHTML = `
+                    <img src="${imagePath}" onerror="this.style.display='none'" onload="this.parentElement.classList.add('loaded')" />
+                    <div>${imagePath}</div>
+                    <div id="status-${imagePath.replace(/[^a-zA-Z0-9]/g, '')}">Loading...</div>
+                `;
+                imageCheck.appendChild(imageItem);
+                
+                // Test loading
+                try {
+                    const img = new Image();
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = imagePath;
+                    });
+                    imageItem.classList.add('loaded');
+                    document.getElementById(`status-${imagePath.replace(/[^a-zA-Z0-9]/g, '')}`).textContent = '✅ Loaded';
+                    console.log(`✅ Successfully loaded: ${imagePath}`);
+                } catch (error) {
+                    imageItem.classList.add('failed');
+                    document.getElementById(`status-${imagePath.replace(/[^a-zA-Z0-9]/g, '')}`).textContent = '❌ Failed';
+                    console.error(`❌ Failed to load: ${imagePath}`, error);
+                }
+            }
+        };
+        
+        window.generateDebugPDF = async function() {
+            console.log('🚀 Starting PDF Generation with Debug Logging...');
+            try {
+                const pdfGenerator = new PDFGenerator();
+                await pdfGenerator.generatePDF();
+                console.log('✅ PDF Generation completed successfully!');
+            } catch (error) {
+                console.error('❌ PDF Generation failed:', error);
+            }
+        };
+        
+        window.clearConsole = function() {
+            consoleOutput = [];
+            document.getElementById('consoleOutput').style.display = 'none';
+        };
+    </script>
+</body>
+</html>

@@ -84,7 +84,7 @@ export const products = [
     category: 'Cooling & Ventilation'
   },
   {
-    image: '../images/Product3.jpg',
+    image: '../images/Product3.JPEG',
     description: {
       text: 'Araknis Networks 220-Series Single-WAN Multi Gigabit VPN Router',
       comment: null,
@@ -144,7 +144,7 @@ export const products = [
     category: 'Network Equipment'
   },
   {
-    image: '../images/Product3.jpg',
+    image: '../images/Product3.JPEG',
     description: {
       text: null,
       comment: 'CAT6-e',
