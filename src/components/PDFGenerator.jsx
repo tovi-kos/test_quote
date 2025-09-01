@@ -17,7 +17,6 @@ class PDFGenerator {
     this.currentY = this.margins.top;
     this.headerHeight = 45;
     this.lightPurpleColor = [242, 237, 247];
-    this.rowHeight = 22;
     this.maxProductsPerPage = 9;
     this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 40;
     
@@ -197,10 +196,48 @@ class PDFGenerator {
       // Legacy format - return as-is for autoTable to render
       return description;
     } else if (typeof description === 'object' && description !== null) {
-      // New object format - return empty string, we'll custom render in didDrawCell
+      // For object format, return empty string - we'll custom render in didDrawCell
+      // This prevents autoTable from rendering plain text
       return '';
     }
     return '';
+  }
+
+  calculateRowHeight(product, cellWidth = 80) {
+    // Calculate the required height for a product row
+    let maxHeight = 20; // Minimum height for image (16px + padding)
+    
+    if (product.description) {
+      if (typeof product.description === 'string') {
+        // Calculate height for wrapped text
+        const wrappedLines = this.wrapText(product.description, 11, cellWidth - 8);
+        const textHeight = wrappedLines.length * 4.5 + 8; // line height + padding
+        maxHeight = Math.max(maxHeight, textHeight);
+      } else if (typeof product.description === 'object') {
+        // Calculate height for complex description with tighter spacing
+        let totalHeight = 2; // top padding
+        const { text, comment, logo } = product.description;
+        const componentGap = 2; // Gap between components
+        
+        if (text) {
+          const wrappedLines = this.wrapText(text, 11, cellWidth - 8);
+          totalHeight += wrappedLines.length * 3.5 + componentGap;
+        }
+        if (comment) {
+          const wrappedLines = this.wrapText(comment, 10, cellWidth - 8);
+          totalHeight += wrappedLines.length * 3.5 + componentGap;
+        }
+        if (logo) {
+          totalHeight += 6 + componentGap; // Logo height (6) + gap
+        }
+        
+        totalHeight += 2; // bottom padding
+        maxHeight = Math.max(maxHeight, totalHeight);
+      }
+    }
+    
+    // Add space for double lines at bottom of row (3px for lines + gap)
+    return maxHeight + 4;
   }
 
   addStripedBackground(x, y, width, height) {
@@ -224,40 +261,103 @@ class PDFGenerator {
   }
 
   drawDoubleHorizontalLine(y, startX, endX) {
-    // Draw double horizontal lines with 3px spacing
+    // Draw double horizontal lines below the row
     this.doc.setDrawColor(0, 0, 0); // Black color for lines
-    this.doc.setLineWidth(0.2);
-    // First line - positioned slightly higher
-    this.doc.line(startX, y - 1, endX, y - 1);
-    // Second line with 3px spacing
-    this.doc.line(startX, y - 0.5, endX, y - 0.5);
+    this.doc.setLineWidth(0.3); // Slightly thicker for visibility
+    // First line at the y position
+    this.doc.line(startX, y, endX, y);
+    // Second line 0.5 units below (creating double line effect)
+    this.doc.line(startX, y + 0.5, endX, y + 0.5);
   }
 
   addProductTable(categoryProducts, categoryName) {
     const startX = this.margins.left;
     const tableWidth = this.pageWidth - this.margins.left - this.margins.right;
     
+    // Calculate row heights for all products
+    const rowHeights = categoryProducts.map(product => this.calculateRowHeight(product));
+    
     // Create table data with properly formatted numbers and correct currency
     const tableData = categoryProducts.map((product, index) => {
+      // For images, we'll use autoTable's content property
+      const imageCell = {
+        content: '',
+        styles: {
+          minCellHeight: rowHeights[index]
+        }
+      };
+      
+      // For descriptions, provide the actual content
+      const descriptionContent = this.formatDescription(product.description);
+      
       return [
-        '', // Image placeholder
-        this.formatDescription(product.description),
+        imageCell,
+        descriptionContent,
         this.formatNumber(product.itemPrice) + ' ILS',
         product.quantity.toString(),
         this.formatNumber(product.total) + ' ILS'
       ];
     });
 
-    // Use fixed maximum of 9 products per page
-    const maxRowsPerPage = this.maxProductsPerPage;
+    // Dynamic page break calculation
+    const footerStart = this.pageHeight - 23; // Footer starts at this Y position
+    const headerHeight = 10; // Approximate height of table header
     
     let currentProductIndex = 0;
     let totalProducts = categoryProducts.length;
     
     while (currentProductIndex < totalProducts) {
-      // Determine how many rows to show on this page
-      const rowsOnThisPage = Math.min(maxRowsPerPage, totalProducts - currentProductIndex);
+      // Calculate available height on current page
+      const availableHeight = footerStart - this.currentY - 5; // 5px buffer before footer
+      
+      // Determine how many rows will fit on this page
+      let rowsOnThisPage = 0;
+      let totalHeightUsed = headerHeight; // Start with header height
+      
+      for (let i = currentProductIndex; i < totalProducts; i++) {
+        const rowHeight = rowHeights[i];
+        if (totalHeightUsed + rowHeight > availableHeight) {
+          // This row won't fit, stop here
+          break;
+        }
+        totalHeightUsed += rowHeight;
+        rowsOnThisPage++;
+      }
+      
+      // Check if we need a new page
+      let needNewPage = false;
+      
+      // Case 1: No rows fit on current page
+      if (rowsOnThisPage === 0) {
+        needNewPage = true;
+      }
+      // Case 2: This is a continuation of the category (not first batch)
+      else if (currentProductIndex > 0) {
+        needNewPage = true;
+      }
+      
+      // Add new page if needed and recalculate
+      if (needNewPage) {
+        this.doc.addPage();
+        this.addSectionHeader(categoryName);
+        
+        // Recalculate available space on the fresh page
+        const freshAvailableHeight = footerStart - this.currentY - 5;
+        rowsOnThisPage = 0;
+        totalHeightUsed = headerHeight;
+        
+        for (let i = currentProductIndex; i < totalProducts; i++) {
+          const rowHeight = rowHeights[i];
+          if (totalHeightUsed + rowHeight > freshAvailableHeight) {
+            break;
+          }
+          totalHeightUsed += rowHeight;
+          rowsOnThisPage++;
+        }
+      }
+      
       const productsForThisPage = tableData.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
+      const rowHeightsForThisPage = rowHeights.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
       
       // Capture the current index for use in closures
       const pageProductStartIndex = currentProductIndex;
@@ -266,11 +366,7 @@ class PDFGenerator {
       // Track which rows have had lines drawn to prevent duplicates
       const drawnLines = new Set();
       
-      // If this is not the first page for this category, add header again
-      if (currentProductIndex > 0) {
-        this.doc.addPage();
-        this.addSectionHeader(categoryName);
-      }
+      // Page handling is done above in the dynamic calculation
       
       // Configure autoTable with exact styling from Quote.pdf
       try {
@@ -281,11 +377,11 @@ class PDFGenerator {
         margin: { left: startX, right: this.margins.right },
         tableWidth: tableWidth,
         columnStyles: {
-          0: { cellWidth: 48.8, halign: 'center' }, // Item column
-          1: { cellWidth: 87.1, halign: 'center' }, // Description - wider
-          2: { cellWidth: 27.1, halign: 'center' }, // Item Price
-          3: { cellWidth: 11.6, halign: 'center' }, // Qty
-          4: { cellWidth: 29.4, halign: 'center' }  // Total
+          0: { cellWidth: 48.8, halign: 'center', valign: 'middle' }, // Item column
+          1: { cellWidth: 80, halign: 'center', valign: 'top', overflow: 'linebreak' }, // Description - reduced
+          2: { cellWidth: 34.2, halign: 'center', valign: 'middle' }, // Item Price - increased
+          3: { cellWidth: 11.6, halign: 'center', valign: 'middle' }, // Qty
+          4: { cellWidth: 29.4, halign: 'center', valign: 'middle' }  // Total
         },
         headStyles: {
           fillColor: [255, 255, 255],
@@ -304,10 +400,10 @@ class PDFGenerator {
           textColor: [0, 0, 0],
           lineColor: [255, 255, 255],
           lineWidth: 0,
-          minCellHeight: 23,
           valign: 'middle',
-          cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
-          fillColor: [255, 255, 255]
+          cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
+          fillColor: [255, 255, 255],
+          overflow: 'linebreak'
         },
         alternateRowStyles: {
           fillColor: [255, 255, 255]
@@ -322,7 +418,10 @@ class PDFGenerator {
           font: 'helvetica'
         },
         willDrawCell: (data) => {
-          // Let all cells render normally (same approach that fixed images)
+          // Set dynamic row height for body cells
+          if (data.row.section === 'body' && data.row.index < rowHeightsForThisPage.length) {
+            data.row.height = rowHeightsForThisPage[data.row.index];
+          }
           return true;
         },
         didDrawCell: (data) => {
@@ -331,7 +430,7 @@ class PDFGenerator {
             const rowKey = `${data.row.section}-${data.row.index}`;
             
             if (!drawnLines.has(rowKey)) {
-              const lineY = data.cell.y + data.cell.height;
+              const lineY = data.cell.y + data.cell.height - 3; // Position lines inside row with gap from content
               const lineStartX = startX;
               const lineEndX = startX + tableWidth;
               
@@ -486,16 +585,15 @@ class PDFGenerator {
     
     if (components.length === 0) return;
     
-    // Calculate spacing
-    const padding = 2;
-    const availableHeight = cellHeight - (2 * padding);
-    const componentHeight = availableHeight / components.length;
+    // Calculate spacing with minimal gaps
+    const topPadding = 2;
+    const componentGap = 2; // Small gap between components
     const maxTextWidth = cellWidth - 8; // Padding for text wrapping
     
-    // Render each component
+    let currentY = cellY + topPadding;
+    
+    // Render each component sequentially with minimal spacing
     components.forEach((component, index) => {
-      const componentY = cellY + padding + (index * componentHeight);
-      const componentCenterY = componentY + (componentHeight / 2);
       
       if (component.type === 'text') {
         this.doc.setFontSize(11);
@@ -504,12 +602,12 @@ class PDFGenerator {
         
         const wrappedLines = this.wrapText(component.content, 11, maxTextWidth);
         const lineHeight = 3.5;
-        const totalTextHeight = wrappedLines.length * lineHeight;
-        const startY = componentY + (componentHeight - totalTextHeight) / 2 + lineHeight;
         
         wrappedLines.forEach((line, lineIndex) => {
-          this.doc.text(line, cellX + cellWidth / 2, startY + (lineIndex * lineHeight), { align: 'center' });
+          this.doc.text(line, cellX + cellWidth / 2, currentY + lineHeight + (lineIndex * lineHeight), { align: 'center' });
         });
+        
+        currentY += wrappedLines.length * lineHeight + componentGap;
         
       } else if (component.type === 'comment') {
         this.doc.setFontSize(10);
@@ -518,12 +616,12 @@ class PDFGenerator {
         
         const wrappedLines = this.wrapText(component.content, 10, maxTextWidth);
         const lineHeight = 3.5;
-        const totalTextHeight = wrappedLines.length * lineHeight;
-        const startY = componentY + (componentHeight - totalTextHeight) / 2 + lineHeight;
         
         wrappedLines.forEach((line, lineIndex) => {
-          this.doc.text(line, cellX + cellWidth / 2, startY + (lineIndex * lineHeight), { align: 'center' });
+          this.doc.text(line, cellX + cellWidth / 2, currentY + lineHeight + (lineIndex * lineHeight), { align: 'center' });
         });
+        
+        currentY += wrappedLines.length * lineHeight + componentGap;
         
       } else if (component.type === 'logo') {
         const logoImg = this.companyLogos && this.companyLogos[component.content];
@@ -532,16 +630,18 @@ class PDFGenerator {
             const logoWidth = Math.min(20, cellWidth - 20);
             const logoHeight = 6;
             const logoX = cellX + (cellWidth - logoWidth) / 2;
-            const logoY = componentCenterY - (logoHeight / 2);
+            const logoY = currentY;
             
             this.doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+            currentY += logoHeight + componentGap;
           } catch (e) {
             console.error(`Error adding company logo ${component.content}:`, e);
             // Fallback to text
             this.doc.setFontSize(9);
             this.doc.setFont('helvetica', 'italic');
             this.doc.setTextColor(58, 25, 82);
-            this.doc.text(component.content.replace('logos/', '').replace('.png', ''), cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+            this.doc.text(component.content.replace('logos/', '').replace('.png', ''), cellX + cellWidth / 2, currentY + 4, { align: 'center' });
+            currentY += 8 + componentGap;
           }
         } else {
           // Fallback to text when logo is not available
@@ -549,7 +649,8 @@ class PDFGenerator {
           this.doc.setFont('helvetica', 'italic');
           this.doc.setTextColor(58, 25, 82);
           const logoName = component.content.replace('logos/', '').replace('.png', '');
-          this.doc.text(logoName, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+          this.doc.text(logoName, cellX + cellWidth / 2, currentY + 4, { align: 'center' });
+          currentY += 8 + componentGap;
         }
       }
     });
