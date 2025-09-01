@@ -23,6 +23,7 @@ class PDFGenerator {
     
     // Initialize image storage
     this.companyLogos = {};
+    this.productImages = {};
     this.logoDataUrl = null;
     this.firstPageDataUrl = null;
     this.flowerDataUrl = null;
@@ -74,6 +75,20 @@ class PDFGenerator {
           }
         } catch (error) {
           console.warn(`Failed to load logo ${logoName}:`, error);
+        }
+      }
+      
+      // Load product images
+      const productImageNames = ['Product1.jpg', 'Product2.jpg', 'Product3.JPEG', 'Product4.jpg', 'Product5.jpg', 'Product6.jpg', 'Product7.jpg', 'Product8.jpg'];
+      for (const imageName of productImageNames) {
+        try {
+          const productImg = await this.imageToBase64(`/images/${imageName}`);
+          if (productImg) {
+            this.productImages[`../images/${imageName}`] = productImg;
+            console.log(`Loaded product image: ${imageName}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to load product image ${imageName}:`, error);
         }
       }
     } catch (error) {
@@ -208,15 +223,11 @@ class PDFGenerator {
     }
   }
 
-  drawDoubleHorizontalLine(y, startX, endX) {
-    // Draw perfect double horizontal line like in Quote.pdf
-    this.doc.setDrawColor(0, 0, 0);
-    this.doc.setLineWidth(0.5);
-    // First line
-    this.doc.line(startX, y, endX, y);
-    // Second line
+  drawSingleHorizontalLine(y, startX, endX) {
+    // Draw single consistent horizontal line
+    this.doc.setDrawColor(200, 200, 200); // Light gray like the alternating rows
     this.doc.setLineWidth(0.3);
-    this.doc.line(startX, y + 1, endX, y + 1);
+    this.doc.line(startX, y, endX, y);
   }
 
   addProductTable(categoryProducts, categoryName) {
@@ -248,6 +259,9 @@ class PDFGenerator {
       // Capture the current index for use in closures
       const pageProductStartIndex = currentProductIndex;
       const categoryProductsForThisPage = categoryProducts.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
+      
+      // Track which rows have had lines drawn to prevent duplicates
+      const drawnLines = new Set();
       
       // If this is not the first page for this category, add header again
       if (currentProductIndex > 0) {
@@ -287,9 +301,10 @@ class PDFGenerator {
           textColor: [0, 0, 0],
           lineColor: [255, 255, 255],
           lineWidth: 0,
-          minCellHeight: 22,
+          minCellHeight: 19,
           valign: 'middle',
-          cellPadding: { top: 2, right: 2, bottom: 2, left: 2 }
+          cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
+          fillColor: [255, 255, 255]
         },
         alternateRowStyles: {
           fillColor: [255, 255, 255]
@@ -308,44 +323,58 @@ class PDFGenerator {
           return true;
         },
         didDrawCell: (data) => {
-          // Draw consistent double horizontal lines after every row
+          // Draw consistent horizontal lines after each row (only once per row)
           if (data.column.index === 4) { // Last column
-
-            const lineY = data.cell.y + data.cell.height;
-            const lineStartX = startX;
-            const lineEndX = startX + tableWidth;
+            const rowKey = `${data.row.section}-${data.row.index}`;
             
-            if (data.row.section === 'head') {
-              // Double line after header
-              this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
-            } else if (data.row.section === 'body') {
-              // Double line after each body row
-              this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
+            if (!drawnLines.has(rowKey)) {
+              const lineY = data.cell.y + data.cell.height;
+              const lineStartX = startX;
+              const lineEndX = startX + tableWidth;
+              
+              if (data.row.section === 'head') {
+                // Single line after header
+                this.drawSingleHorizontalLine(lineY, lineStartX, lineEndX);
+              } else if (data.row.section === 'body') {
+                // Single line after each body row
+                this.drawSingleHorizontalLine(lineY, lineStartX, lineEndX);
+              }
+              
+              drawnLines.add(rowKey);
             }
           }
           
-          // Add flower images in the first column
+          // Add product images in the first column
           if (data.row.section === 'body' && data.column.index === 0) {
-            const imgX = data.cell.x + 2;
-            const imgY = data.cell.y + 2;
-            const imgWidth = 18;
-            const imgHeight = 18;
+            const imgWidth = 16;
+            const imgHeight = 16;
+            const imgX = data.cell.x + (data.cell.width - imgWidth) / 2;
+            const imgY = data.cell.y + (data.cell.height - imgHeight) / 2;
             
-            console.log('Attempting to add flower image to cell:', data.cell.x, data.cell.y);
+            const rowIndex = data.row.index;
+            const product = categoryProductsForThisPage[rowIndex];
             
-            // Add flower image for all items (using same approach as final page)
-            if (this.flowerDataUrl) {
+            console.log('Attempting to add product image to cell:', data.cell.x, data.cell.y);
+            
+            // Get the product image
+            let productImg = null;
+            if (product && product.image) {
+              productImg = this.productImages[product.image];
+              console.log(`Looking for product image: ${product.image}, found: ${productImg ? 'YES' : 'NO'}`);
+            }
+            
+            if (productImg) {
               try {
-                console.log('Flower image data available, adding to PDF...');
-                this.doc.addImage(this.flowerDataUrl, 'JPEG', imgX, imgY, imgWidth, imgHeight);
-                console.log('Flower image successfully added to table cell');
+                console.log('Product image data available, adding to PDF...');
+                this.doc.addImage(productImg, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+                console.log('Product image successfully added to table cell');
               } catch (e) {
-                console.error('Failed to add flower image to table cell:', e.message);
-                this.addProductPlaceholder(imgX, imgY, 'Flower', imgWidth, imgHeight);
+                console.error('Failed to add product image to table cell:', e.message);
+                this.addProductPlaceholder(imgX, imgY, `Product${rowIndex + 1}`, imgWidth, imgHeight);
               }
             } else {
-              console.error('No flower image available - flowerDataUrl is:', this.flowerDataUrl);
-              this.addProductPlaceholder(imgX, imgY, 'Flower', imgWidth, imgHeight);
+              console.error('No product image available for:', product?.image);
+              this.addProductPlaceholder(imgX, imgY, `Product${rowIndex + 1}`, imgWidth, imgHeight);
             }
           }
           
@@ -387,21 +416,53 @@ class PDFGenerator {
     this.doc.text(`Product ${productNum}`, x + width/2, y + height/2 + 1, { align: 'center' });
   }
 
+  // Helper function to wrap text within a given width
+  wrapText(text, fontSize, maxWidth) {
+    this.doc.setFontSize(fontSize);
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    
+    words.forEach(word => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const textWidth = this.doc.getTextWidth(testLine);
+      
+      if (textWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          // Word is too long, just add it anyway
+          lines.push(word);
+        }
+      }
+    });
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    return lines;
+  }
+
   renderDescriptionCell(description, cellX, cellY, cellWidth, cellHeight) {
     // No need to clear background - let autoTable handle cell rendering
     
     if (typeof description === 'string') {
-      // Legacy format - render as before
+      // Legacy format - render with wrapping
       this.doc.setFontSize(11);
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(0, 0, 0);
       
-      const lines = description.split('\n');
+      const maxTextWidth = cellWidth - 8; // Padding
+      const wrappedLines = this.wrapText(description, 11, maxTextWidth);
       const lineHeight = 4;
-      const totalTextHeight = lines.length * lineHeight;
+      const totalTextHeight = wrappedLines.length * lineHeight;
       const startY = cellY + (cellHeight - totalTextHeight) / 2 + lineHeight;
       
-      lines.forEach((line, index) => {
+      wrappedLines.forEach((line, index) => {
         if (line.trim()) {
           this.doc.text(line.trim(), cellX + cellWidth / 2, startY + (index * lineHeight), { align: 'center' });
         }
@@ -415,7 +476,7 @@ class PDFGenerator {
     const { text, comment, logo } = description;
     const components = [];
     
-    // Collect non-null components
+    // Collect non-null components in order: text first, comment second, logo last (bottom)
     if (text) components.push({ type: 'text', content: text });
     if (comment) components.push({ type: 'comment', content: comment });
     if (logo) components.push({ type: 'logo', content: logo });
@@ -426,6 +487,7 @@ class PDFGenerator {
     const padding = 2;
     const availableHeight = cellHeight - (2 * padding);
     const componentHeight = availableHeight / components.length;
+    const maxTextWidth = cellWidth - 8; // Padding for text wrapping
     
     // Render each component
     components.forEach((component, index) => {
@@ -436,20 +498,36 @@ class PDFGenerator {
         this.doc.setFontSize(11);
         this.doc.setFont('helvetica', 'normal');
         this.doc.setTextColor(0, 0, 0);
-        this.doc.text(component.content, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+        
+        const wrappedLines = this.wrapText(component.content, 11, maxTextWidth);
+        const lineHeight = 3.5;
+        const totalTextHeight = wrappedLines.length * lineHeight;
+        const startY = componentY + (componentHeight - totalTextHeight) / 2 + lineHeight;
+        
+        wrappedLines.forEach((line, lineIndex) => {
+          this.doc.text(line, cellX + cellWidth / 2, startY + (lineIndex * lineHeight), { align: 'center' });
+        });
         
       } else if (component.type === 'comment') {
         this.doc.setFontSize(10);
         this.doc.setFont('helvetica', 'bold');
-        this.doc.setTextColor(107, 76, 138); // Dark purple color
-        this.doc.text(component.content, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
+        this.doc.setTextColor(58, 25, 82); // #3A1952 color
+        
+        const wrappedLines = this.wrapText(component.content, 10, maxTextWidth);
+        const lineHeight = 3.5;
+        const totalTextHeight = wrappedLines.length * lineHeight;
+        const startY = componentY + (componentHeight - totalTextHeight) / 2 + lineHeight;
+        
+        wrappedLines.forEach((line, lineIndex) => {
+          this.doc.text(line, cellX + cellWidth / 2, startY + (lineIndex * lineHeight), { align: 'center' });
+        });
         
       } else if (component.type === 'logo') {
         const logoImg = this.companyLogos && this.companyLogos[component.content];
         if (logoImg) {
           try {
-            const logoWidth = Math.min(30, cellWidth - 10);
-            const logoHeight = 8;
+            const logoWidth = Math.min(20, cellWidth - 20);
+            const logoHeight = 6;
             const logoX = cellX + (cellWidth - logoWidth) / 2;
             const logoY = componentCenterY - (logoHeight / 2);
             
@@ -459,14 +537,14 @@ class PDFGenerator {
             // Fallback to text
             this.doc.setFontSize(9);
             this.doc.setFont('helvetica', 'italic');
-            this.doc.setTextColor(107, 76, 138);
+            this.doc.setTextColor(58, 25, 82);
             this.doc.text(component.content.replace('logos/', '').replace('.png', ''), cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
           }
         } else {
           // Fallback to text when logo is not available
           this.doc.setFontSize(9);
           this.doc.setFont('helvetica', 'italic');
-          this.doc.setTextColor(107, 76, 138);
+          this.doc.setTextColor(58, 25, 82);
           const logoName = component.content.replace('logos/', '').replace('.png', '');
           this.doc.text(logoName, cellX + cellWidth / 2, componentCenterY + 2, { align: 'center' });
         }

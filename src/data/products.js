@@ -11,64 +11,64 @@ export const products = [
     total: 1500.00,
     category: 'Network Equipment'
   },
-    {
-    image: '../images/Product1.jpg',
+  {
+    image: '../images/Product6.jpg',
     description: {
-      text: 'Network Rack 10U',
-      comment: 'The rack, including its size, will be determined according to the on-site requirements.',
-      logo: null
+      text: 'Managed Switch 48-Port',
+      comment: 'Enterprise-grade managed switch with PoE+ support for demanding applications.',
+      logo: 'logos/cisco.png'
     },
-    itemPrice: 1500.00,
+    itemPrice: 2200.00,
     quantity: 1,
-    total: 1500.00,
+    total: 2200.00,
     category: 'Network Equipment'
   },
-    {
-    image: '../images/Product1.jpg',
+  {
+    image: '../images/Product7.jpg',
     description: {
-      text: 'Network Rack 10U',
-      comment: 'The rack, including its size, will be determined according to the on-site requirements.',
+      text: 'Patch Panel 24-Port',
+      comment: 'Cat6A certified patch panel for structured cabling systems.',
       logo: null
     },
-    itemPrice: 1500.00,
-    quantity: 1,
-    total: 1500.00,
+    itemPrice: 850.00,
+    quantity: 2,
+    total: 1700.00,
     category: 'Network Equipment'
   },
-    {
-    image: '../images/Product1.jpg',
+  {
+    image: '../images/Product8.jpg',
     description: {
-      text: 'Network Rack 10U',
-      comment: 'The rack, including its size, will be determined according to the on-site requirements.',
+      text: 'Cable Management System',
+      comment: 'Professional cable management with horizontal and vertical organizers.',
       logo: null
     },
-    itemPrice: 1500.00,
-    quantity: 1,
-    total: 1500.00,
+    itemPrice: 650.00,
+    quantity: 3,
+    total: 1950.00,
     category: 'Network Equipment'
   },
-    {
-    image: '../images/Product1.jpg',
+  {
+    image: '../images/Product4.jpg',
     description: {
-      text: 'Network Rack 10U',
-      comment: 'The rack, including its size, will be determined according to the on-site requirements.',
-      logo: null
+      text: 'UPS Backup System',
+      comment: 'Uninterruptible power supply with 1500VA capacity and surge protection.',
+      logo: 'logos/araknis.png'
     },
-    itemPrice: 1500.00,
-    quantity: 1,
-    total: 1500.00,
-    category: 'Network Equipment'
+    itemPrice: 1250.00,
+    quantity: 2,
+    total: 2500.00,
+    category: 'Power Systems'
   },
-    {
-    image: '../images/Product1.jpg',
+  {
+    image: '../images/Product5.jpg',
     description: {
-      text: 'Network Rack 10U',
-      comment: 'The rack, including its size, will be determined according to the on-site requirements.',
+      text: 'Fiber Optic Enclosure',
+      comment: 'Wall-mount fiber distribution panel with splice tray and adapter plates.',
       logo: null
     },
-    itemPrice: 1500.00,
+    itemPrice: 950.00,
     quantity: 1,
-    total: 1500.00,
+    total: 950.00,
     category: 'Network Equipment'
   },
   {
