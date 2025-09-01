@@ -15,7 +15,7 @@ export const products = [
     image: '../images/Product6.jpg',
     description: {
       text: 'Managed Switch 48-Port',
-      comment: 'Enterprise-grade managed switch sgfdgf fgdfg dfgdfgdfg sfgdfgdf dfsdf sdfdsfsd sdfsdf sdf sdf sdf dsf dsfdsfdgfd sdfdgfddg dfgfdgfd sdfsdf sdf sdf sdf dsf dsfdsfdgfd sdfdgfddg dfgfdgfd  with PoE+ support for demanding applications.',
+      comment: 'Enterprise-grade managed switch support for demanding applications.',
       logo: 'logos/cisco.png'
     },
     itemPrice: 2200.00,
@@ -27,7 +27,7 @@ export const products = [
     image: '../images/Product7.jpg',
     description: {
       text: 'Patch Panel 24-Port',
-      comment: 'Cat6A certified patch panel for structured dsfdfdf sdfdsf sdf fsd fdsf sfdfdf sfgdfgfdg sfgdfgdfg dfgfdgdfg dfgfg cabling systems.',
+      comment: 'Cat6A certified patch panel for structured cabling systems.',
       logo: null
     },
     itemPrice: 850.00,

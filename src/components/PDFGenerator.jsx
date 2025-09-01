@@ -15,7 +15,7 @@ class PDFGenerator {
       left: 2.99
     };
     this.currentY = this.margins.top;
-    this.headerHeight = 45;
+    this.headerHeight = 45; // Default height, will be updated based on actual image
     this.lightPurpleColor = [242, 237, 247];
     this.maxProductsPerPage = 9;
     this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 40;
@@ -24,6 +24,7 @@ class PDFGenerator {
     this.companyLogos = {};
     this.productImages = {};
     this.logoDataUrl = null;
+    this.logoAspectRatio = null; // Store aspect ratio for dynamic height
     this.firstPageDataUrl = null;
     this.flowerDataUrl = null;
   }
@@ -54,8 +55,13 @@ class PDFGenerator {
 
   async loadImages() {
     try {
-      // Load logo
+      // Load logo and calculate dynamic height
       this.logoDataUrl = await this.imageToBase64('/images/LOGO.jpeg');
+      
+      // Calculate header height based on logo aspect ratio
+      if (this.logoDataUrl) {
+        await this.calculateLogoHeight();
+      }
       
       // Load first page
       this.firstPageDataUrl = await this.imageToBase64('/images/firstPage.jpeg');
@@ -95,48 +101,47 @@ class PDFGenerator {
     }
   }
 
+  async calculateLogoHeight() {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate aspect ratio and set dynamic header height
+        this.logoAspectRatio = img.height / img.width;
+        // Full page width is 210mm, calculate proportional height
+        this.headerHeight = Math.round(210 * this.logoAspectRatio);
+        // Update usable height based on new header height
+        this.usableHeight = this.pageHeight - this.headerHeight - this.margins.top - this.margins.bottom - 40;
+        console.log(`Logo dimensions: ${img.width}x${img.height}, Aspect ratio: ${this.logoAspectRatio}, Header height: ${this.headerHeight}mm`);
+        resolve();
+      };
+      img.onerror = () => {
+        console.error('Failed to calculate logo dimensions, using default height');
+        resolve();
+      };
+      img.src = this.logoDataUrl;
+    });
+  }
+
   addHeader() {
     if (this.logoDataUrl) {
       try {
+        // Use full page width and dynamic height based on image aspect ratio
         this.doc.addImage(this.logoDataUrl, 'JPEG', 0, 0, 210, this.headerHeight);
+        console.log(`Added header image with height: ${this.headerHeight}mm`);
       } catch (e) {
         console.error('Error adding logo:', e);
-        this.drawFallbackHeader();
+        // Minimal fallback - just set position
+        this.currentY = 50; // Default fallback position
+        return;
       }
     } else {
-      this.drawFallbackHeader();
+      console.warn('Logo image not loaded, skipping header');
+      this.currentY = this.margins.top;
+      return;
     }
     
-    this.currentY = this.headerHeight + 5;
-  }
-
-  drawFallbackHeader() {
-    this.doc.setFillColor(242, 237, 247);
-    this.doc.ellipse(105, 30, 85, 25, 'F');
-    
-    this.doc.setFontSize(11);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setTextColor(0, 0, 0);
-    this.doc.text('PELES SMART HOME LTD', 140, 20);
-    this.doc.text('516897360 .נ.ח', 140, 25);
-    
-    this.doc.setFontSize(9);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.text('077-8040608', 140, 32);
-    this.doc.text('sales@peles-sh.com', 140, 37);
-    this.doc.text('www.peles-sh.com', 140, 42);
-    this.doc.text('19 King David St, Jerusalem', 140, 47);
-    
-    this.doc.setFontSize(22);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setTextColor(107, 76, 138);
-    this.doc.text('PELES', 35, 30);
-    this.doc.setFontSize(12);
-    this.doc.text('SMART HOME', 35, 37);
-    
-    this.doc.setFontSize(10);
-    this.doc.setTextColor(0, 0, 0);
-    this.doc.text('B"H', 10, 15);
+    // Position content directly below the dynamic header with minimal gap
+    this.currentY = this.headerHeight + 2; // Very small 2mm gap
   }
 
   addFirstPage() {
@@ -173,8 +178,10 @@ class PDFGenerator {
   addSectionHeader(sectionName) {
     this.addHeader();
     
-    // Striped background for section header - full width
-    this.addStripedBackground(0, this.currentY, this.pageWidth, 12);
+    // Striped background for section header - matching table margins
+    const backgroundX = this.margins.left;
+    const backgroundWidth = this.pageWidth - this.margins.left - this.margins.right;
+    this.addStripedBackground(backgroundX, this.currentY, backgroundWidth, 12);
     
     // Section title with exact font size from Quote.pdf
     this.doc.setFontSize(28);
@@ -675,9 +682,9 @@ class PDFGenerator {
   addFooter(pageNum, totalPages) {
     const footerY = this.pageHeight - 23;
     
-    // Add striped background ONLY for the details row
-    const detailsBgX = 0; // Full page width
-    const detailsBgWidth = this.pageWidth;
+    // Add striped background ONLY for the details row - matching table margins
+    const detailsBgX = this.margins.left;
+    const detailsBgWidth = this.pageWidth - this.margins.left - this.margins.right;
     const detailsBgHeight = 12; // Only cover the details line
     
     this.addStripedBackground(detailsBgX, footerY - 2, detailsBgWidth, detailsBgHeight);
