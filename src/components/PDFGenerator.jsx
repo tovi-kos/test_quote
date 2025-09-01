@@ -26,7 +26,6 @@ class PDFGenerator {
     this.logoDataUrl = null;
     this.logoAspectRatio = null; // Store aspect ratio for dynamic height
     this.firstPageDataUrl = null;
-    this.flowerDataUrl = null;
   }
 
   async imageToBase64(url) {
@@ -65,10 +64,6 @@ class PDFGenerator {
       
       // Load first page
       this.firstPageDataUrl = await this.imageToBase64('/images/firstPage.jpeg');
-      
-      // Load flower image for final page and ITEM column
-      this.flowerDataUrl = await this.imageToBase64('/images/ff.jpg');
-      console.log('Flower image loaded:', this.flowerDataUrl ? 'SUCCESS' : 'FAILED');
       
       // Load company logos with error handling
       const logoNames = ['aruba', 'araknis', 'cisco', 'hikvision', 'ubiquiti'];
@@ -147,32 +142,14 @@ class PDFGenerator {
   addFirstPage() {
     if (this.firstPageDataUrl) {
       try {
+        // Add first page image as full page
         this.doc.addImage(this.firstPageDataUrl, 'JPEG', 0, 0, 210, 297);
       } catch (e) {
-        console.error('Error adding first page:', e);
-        this.drawFallbackFirstPage();
+        console.error('Error adding first page image:', e);
       }
-    } else {
-      this.drawFallbackFirstPage();
     }
     
     this.doc.addPage();
-  }
-
-  drawFallbackFirstPage() {
-    this.doc.setFillColor(242, 237, 247);
-    this.doc.rect(0, 0, 210, 297, 'F');
-    
-    this.doc.setFontSize(32);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setTextColor(107, 76, 138);
-    this.doc.text('PELES', 105, 100, { align: 'center' });
-    this.doc.setFontSize(20);
-    this.doc.text('SMART HOME', 105, 115, { align: 'center' });
-    
-    this.doc.setFontSize(16);
-    this.doc.setTextColor(0, 0, 0);
-    this.doc.text('Price Quote', 105, 150, { align: 'center' });
   }
 
   addSectionHeader(sectionName) {
@@ -706,35 +683,6 @@ class PDFGenerator {
     this.doc.text(`Page - ${pageNum} Of ${totalPages}`, 105, footerY + 18, { align: 'center' });
   }
 
-  addFinalPage() {
-    // Add a new page for the final "Best of luck" message
-    this.doc.addPage();
-    
-    // Center the content vertically and horizontally
-    const centerX = this.pageWidth / 2;
-    const centerY = this.pageHeight / 2;
-    
-    // Add "Best of luck" text
-    this.doc.setFontSize(32);
-    this.doc.setFont('Georgia', 'bold');
-    this.doc.setTextColor(107, 76, 138); // Purple color matching brand
-    this.doc.text('Best of luck', centerX, centerY - 40, { align: 'center' });
-    
-    // Add flower image below the text if available
-    if (this.flowerDataUrl) {
-      try {
-        const imgWidth = 60;
-        const imgHeight = 60;
-        const imgX = centerX - (imgWidth / 2);
-        const imgY = centerY - 10;
-        
-        this.doc.addImage(this.flowerDataUrl, 'JPEG', imgX, imgY, imgWidth, imgHeight);
-      } catch (e) {
-        console.error('Failed to add flower image:', e);
-      }
-    }
-  }
-
   async generatePDF() {
     try {
       console.log('Starting PDF generation...');
@@ -766,14 +714,11 @@ class PDFGenerator {
         }
       }
       
-      // Add final "Best of luck" page
-      this.addFinalPage();
-      
-      // Add footer to all pages except the first and final page
+      // Add footer to all pages except the first page
       const totalPages = this.doc.internal.getNumberOfPages();
-      for (let i = 2; i <= totalPages - 1; i++) {
+      for (let i = 2; i <= totalPages; i++) {
         this.doc.setPage(i);
-        this.addFooter(i - 1, totalPages - 2);
+        this.addFooter(i - 1, totalPages - 1);
       }
       console.log('Footers added');
       
