@@ -677,130 +677,79 @@ class PDFGenerator {
     const startX = this.margins.left;
     const tableWidth = this.pageWidth - this.margins.left - this.margins.right;
     
-    // Dynamic page break calculation
-    const footerStart = this.pageHeight - 23; // Footer starts at this Y position
-    const headerHeight = 15; // Approximate height of table header
-    const rowHeight = 20; // Dynamic row height - will auto-adjust based on font size
+    // Track which rows have had lines drawn to prevent duplicates
+    const drawnLines = new Set();
     
-    let currentRowIndex = 0;
-    let totalRows = tableData.length;
-    
-    while (currentRowIndex < totalRows) {
-      // Calculate available height on current page
-      const availableHeight = footerStart - this.currentY - 5; // 5px buffer before footer
-      
-      // Determine how many rows will fit on this page
-      let rowsOnThisPage = 0;
-      let totalHeightUsed = headerHeight; // Start with header height
-      
-      for (let i = currentRowIndex; i < totalRows; i++) {
-        if (totalHeightUsed + rowHeight > availableHeight) {
-          // This row won't fit, stop here
-          break;
+    // Add the labor table - all items in a single table
+    autoTable(this.doc, {
+      head: [['Item', 'Description', 'Item Price']],
+      body: tableData,
+      startY: this.currentY,
+      margin: { left: startX, right: this.margins.right },
+      tableWidth: tableWidth,
+      columnStyles: {
+        0: { cellWidth: 70, halign: 'center', valign: 'middle' }, // Item column - expanded
+        1: { cellWidth: 74, halign: 'center', valign: 'middle' }, // Description column - reduced
+        2: { cellWidth: 60, halign: 'center', valign: 'top' }  // Item Price column - adjusted
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        fontSize: 11,
+        font: 'helvetica',
+        lineColor: [255, 255, 255],
+        lineWidth: 0,
+        cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 11,
+        font: 'helvetica',
+        textColor: [0, 0, 0],
+        lineColor: [255, 255, 255],
+        lineWidth: 0,
+        cellPadding: { top: 8, right: 3, bottom: 8, left: 3 },
+        fillColor: [255, 255, 255]
+      },
+      alternateRowStyles: {
+        fillColor: [255, 255, 255]
+      },
+      theme: 'plain',
+      showHead: 'firstPage',
+      styles: {
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'center',
+        valign: 'middle',
+        font: 'helvetica'
+      },
+      didParseCell: (data) => {
+        // Custom font size for category names in body (first column)
+        if (data.row.section === 'body' && data.column.index === 0) {
+          data.cell.styles.fontSize = 16;
         }
-        totalHeightUsed += rowHeight;
-        rowsOnThisPage++;
-      }
-      
-      // Check if we need a new page
-      if (rowsOnThisPage === 0 || (currentRowIndex > 0)) {
-        // Need a new page
-        this.doc.addPage();
-        this.addHeader();
-        this.addSectionHeader('Labor');
-        
-        // Recalculate available space on the fresh page
-        const freshAvailableHeight = footerStart - this.currentY - 5;
-        rowsOnThisPage = 0;
-        totalHeightUsed = headerHeight;
-        
-        for (let i = currentRowIndex; i < totalRows; i++) {
-          if (totalHeightUsed + rowHeight > freshAvailableHeight) {
-            break;
-          }
-          totalHeightUsed += rowHeight;
-          rowsOnThisPage++;
-        }
-      }
-      
-      const dataForThisPage = tableData.slice(currentRowIndex, currentRowIndex + rowsOnThisPage);
-      
-      // Track which rows have had lines drawn to prevent duplicates
-      const drawnLines = new Set();
-      
-      // Add the labor table for this page
-      autoTable(this.doc, {
-        head: [['Item', 'Description', 'Item Price']],
-        body: dataForThisPage,
-        startY: this.currentY,
-        margin: { left: startX, right: this.margins.right },
-        tableWidth: tableWidth,
-        columnStyles: {
-          0: { cellWidth: 60, halign: 'center', valign: 'middle' }, // Item column
-          1: { cellWidth: 94, halign: 'center', valign: 'middle' }, // Description column
-          2: { cellWidth: 50, halign: 'center', valign: 'top' }  // Item Price column
-        },
-        headStyles: {
-          fillColor: [255, 255, 255],
-          textColor: [0, 0, 0],
-          fontStyle: 'bold',
-          fontSize: 11,
-          font: 'helvetica',
-          lineColor: [255, 255, 255],
-          lineWidth: 0,
-          cellPadding: { top: 3, bottom: 3, left: 2, right: 2 },
-          halign: 'center'
-        },
-        bodyStyles: {
-          fontSize: 11,
-          font: 'helvetica',
-          textColor: [0, 0, 0],
-          lineColor: [255, 255, 255],
-          lineWidth: 0,
-          valign: 'middle',
-          cellPadding: { top: 8, right: 3, bottom: 8, left: 3 },
-          fillColor: [255, 255, 255]
-        },
-        alternateRowStyles: {
-          fillColor: [255, 255, 255]
-        },
-        theme: 'plain',
-        showHead: currentRowIndex === 0 ? 'firstPage' : 'everyPage',
-        styles: {
-          overflow: 'linebreak',
-          cellWidth: 'wrap',
-          halign: 'center',
-          valign: 'middle',
-          font: 'helvetica'
-        },
-        didParseCell: (data) => {
-          // Custom font size for category names in body (first column)
-          if (data.row.section === 'body' && data.column.index === 0) {
-            data.cell.styles.fontSize = 16;
-          }
-        },
-        didDrawCell: (data) => {
-          // Draw consistent horizontal lines after each row (only once per row)
-          if (data.column.index === 2) { // Last column
-            const rowKey = `${data.row.section}-${data.row.index}`;
+      },
+      didDrawCell: (data) => {
+        // Draw consistent horizontal lines after each row (only once per row)
+        if (data.column.index === 2) { // Last column
+          const rowKey = `${data.row.section}-${data.row.index}`;
+          
+          if (!drawnLines.has(rowKey)) {
+            const lineY = data.cell.y + data.cell.height - 2; // Position lines inside row
+            const lineStartX = startX;
+            const lineEndX = startX + tableWidth;
             
-            if (!drawnLines.has(rowKey)) {
-              const lineY = data.cell.y + data.cell.height - 2; // Position lines inside row
-              const lineStartX = startX;
-              const lineEndX = startX + tableWidth;
-              
-              // Double line after each row (header and body)
-              this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
-              
-              drawnLines.add(rowKey);
-            }
+            // Double line after each row (header and body)
+            this.drawDoubleHorizontalLine(lineY, lineStartX, lineEndX);
+            
+            drawnLines.add(rowKey);
           }
         }
-      });
-      
-      this.currentY = this.doc.lastAutoTable.finalY + 10;
-      currentRowIndex += rowsOnThisPage;
-    }
+      }
+    });
+    
+    this.currentY = this.doc.lastAutoTable.finalY + 10;
     
     // Add total row for Labor after all rows are rendered
     this.addLaborTotalRow(laborTotal);

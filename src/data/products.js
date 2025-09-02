@@ -1,7 +1,7 @@
 export const data = {
   productCategories: [
     {
-      categoryName: 'Network Equipment',
+      categoryName: 'Network Equipment  ',
       products: [
         {
           image: '../images/Product1.jpg',
