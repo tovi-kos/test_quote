@@ -143,6 +143,50 @@ export const data = {
           itemPrice: 1250.00,
           quantity: 2,
           total: 2500.00
+        },
+        {
+          image: '../images/hover_1.JPG',
+          description: {
+            text: 'Rack Mount PDU 16-Outlet',
+            comment: 'Professional power distribution unit with individual outlet switching and monitoring.',
+            logo: 'logos/PIMA.jpg'
+          },
+          itemPrice: 850.00,
+          quantity: 3,
+          total: 2550.00
+        },
+        {
+          image: '../images/inter.jpg',
+          description: {
+            text: 'Battery Backup System 3000VA',
+            comment: 'Enterprise-grade battery backup with extended runtime and LCD display.',
+            logo: 'logos/araknis.png'
+          },
+          itemPrice: 2200.00,
+          quantity: 1,
+          total: 2200.00
+        },
+        {
+          image: '../images/Product6.jpg',
+          description: {
+            text: 'Surge Protection Module',
+            comment: 'Advanced surge protector with network and telephone line protection.',
+            logo: null
+          },
+          itemPrice: 450.00,
+          quantity: 4,
+          total: 1800.00
+        },
+        {
+          image: '../images/Product8.jpg',
+          description: {
+            text: 'Power Monitoring System',
+            comment: 'Real-time power consumption monitoring with remote management capabilities.',
+            logo: 'logos/ubiquiti.png'
+          },
+          itemPrice: 1100.00,
+          quantity: 2,
+          total: 2200.00
         }
       ],
       labor: {
@@ -163,6 +207,50 @@ export const data = {
           itemPrice: 1400.00,
           quantity: 1,
           total: 1400.00
+        },
+        {
+          image: '../images/inter.jpg',
+          description: {
+            text: 'Rack Cooling Unit 2U',
+            comment: 'High-efficiency rack mount cooling system with variable speed control.',
+            logo: 'logos/araknis.png'
+          },
+          itemPrice: 1850.00,
+          quantity: 2,
+          total: 3700.00
+        },
+        {
+          image: '../images/Product7.jpg',
+          description: {
+            text: 'Environmental Monitoring Sensor',
+            comment: 'Temperature, humidity, and airflow monitoring with SNMP alerts.',
+            logo: 'logos/ubiquiti.png'
+          },
+          itemPrice: 650.00,
+          quantity: 4,
+          total: 2600.00
+        },
+        {
+          image: '../images/hover_1.JPG',
+          description: {
+            text: 'Smart Ventilation Controller',
+            comment: 'Automated ventilation system with remote monitoring and scheduling.',
+            logo: null
+          },
+          itemPrice: 1200.00,
+          quantity: 1,
+          total: 1200.00
+        },
+        {
+          image: '../images/Product8.jpg',
+          description: {
+            text: 'Server Room Air Conditioning',
+            comment: 'Precision cooling system designed for IT environments with redundant operation.',
+            logo: 'logos/cisco.png'
+          },
+          itemPrice: 3200.00,
+          quantity: 1,
+          total: 3200.00
         }
       ],
       labor: {
@@ -236,6 +324,28 @@ export const data = {
           itemPrice: 500.00,
           quantity: 1,
           total: 500.00
+        },
+        {
+          image: '../images/hover_1.JPG',
+          description: {
+            text: 'Network Testing & Certification',
+            comment: 'Professional cable testing and certification with detailed reporting.',
+            logo: 'logos/araknis.png'
+          },
+          itemPrice: 1200.00,
+          quantity: 1,
+          total: 1200.00
+        },
+        {
+          image: '../images/Product6.jpg',
+          description: {
+            text: 'Cable Pulling & Management Service',
+            comment: 'Professional cable installation including conduit pulling and pathway setup.',
+            logo: null
+          },
+          itemPrice: 850.00,
+          quantity: 2,
+          total: 1700.00
         }
       ],
       labor: {
@@ -248,10 +358,58 @@ export const data = {
       products: [
         {
           image: '../images/Product4.jpg',
-          description: 'Smart Home Hub (Legacy Format)',
+          description: {
+            text: 'Smart Home Hub',
+            comment: 'Central automation controller with voice control and mobile app integration.',
+            logo: 'logos/ubiquiti.png'
+          },
           itemPrice: 2200.00,
           quantity: 1,
           total: 2200.00
+        },
+        {
+          image: '../images/inter.jpg',
+          description: {
+            text: 'Smart Light Switch System',
+            comment: 'WiFi-enabled smart switches with dimming control and scheduling.',
+            logo: 'logos/aruba.png'
+          },
+          itemPrice: 180.00,
+          quantity: 8,
+          total: 1440.00
+        },
+        {
+          image: '../images/hover_1.JPG',
+          description: {
+            text: 'Smart Environmental Sensors',
+            comment: 'Motion, temperature, and occupancy sensors with automated response.',
+            logo: 'logos/PIMA.jpg'
+          },
+          itemPrice: 120.00,
+          quantity: 6,
+          total: 720.00
+        },
+        {
+          image: '../images/Product7.jpg',
+          description: {
+            text: 'Smart Thermostat Controller',
+            comment: 'Intelligent climate control with energy monitoring and remote access.',
+            logo: 'logos/cisco.png'
+          },
+          itemPrice: 450.00,
+          quantity: 3,
+          total: 1350.00
+        },
+        {
+          image: '../images/Product8.jpg',
+          description: {
+            text: 'Home Automation Gateway',
+            comment: 'Multi-protocol gateway supporting Zigbee, Z-Wave, and WiFi devices.',
+            logo: 'logos/ubiquiti.png'
+          },
+          itemPrice: 850.00,
+          quantity: 2,
+          total: 1700.00
         }
       ],
       labor: {
@@ -272,6 +430,50 @@ export const data = {
           itemPrice: 3200.00,
           quantity: 2,
           total: 6400.00
+        },
+        {
+          image: '../images/hover_1.JPG',
+          description: {
+            text: 'Door Access Control System',
+            comment: 'Biometric and card-based access control with remote management.',
+            logo: 'logos/hikvision.png'
+          },
+          itemPrice: 1800.00,
+          quantity: 4,
+          total: 7200.00
+        },
+        {
+          image: '../images/inter.jpg',
+          description: {
+            text: 'Motion Detection Sensors',
+            comment: 'Wireless PIR sensors with pet immunity and tamper protection.',
+            logo: 'logos/PIMA.jpg'
+          },
+          itemPrice: 350.00,
+          quantity: 6,
+          total: 2100.00
+        },
+        {
+          image: '../images/Product3.JPEG',
+          description: {
+            text: 'Security Alarm Panel',
+            comment: 'Advanced alarm control panel with cellular and IP communication.',
+            logo: 'logos/PIMA.jpg'
+          },
+          itemPrice: 2500.00,
+          quantity: 1,
+          total: 2500.00
+        },
+        {
+          image: '../images/Product6.jpg',
+          description: {
+            text: 'Video Intercom System',
+            comment: 'HD video doorbell with two-way audio and mobile app integration.',
+            logo: 'logos/hikvision.png'
+          },
+          itemPrice: 950.00,
+          quantity: 3,
+          total: 2850.00
         }
       ],
       labor: {

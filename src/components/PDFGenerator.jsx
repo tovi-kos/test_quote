@@ -44,13 +44,56 @@ class PDFGenerator {
         resolve(base64);
       };
       
-      img.onerror = (error) => {
+      img.onerror = () => {
         console.error(`Failed to load image: ${url}`);
         resolve(null);
       };
       
       img.src = url;
     });
+  }
+
+  // Method to dynamically extract all image and logo paths from products data
+  getAllImagePaths() {
+    const allImages = new Set();
+    const allLogos = new Set();
+    
+    // Scan all product categories and products
+    data.productCategories.forEach(category => {
+      category.products.forEach(product => {
+        // Collect product images
+        if (product.image) {
+          allImages.add(product.image);
+        }
+        
+        // Collect logo paths from product descriptions
+        if (product.description && typeof product.description === 'object' && product.description.logo) {
+          allLogos.add(product.description.logo);
+        }
+      });
+    });
+    
+    console.log('Found product images:', Array.from(allImages));
+    console.log('Found logo paths:', Array.from(allLogos));
+    
+    return {
+      images: Array.from(allImages),
+      logos: Array.from(allLogos)
+    };
+  }
+
+  // Method to detect image format from file extension
+  getImageFormat(imagePath) {
+    const extension = imagePath.toLowerCase().split('.').pop();
+    switch (extension) {
+      case 'png':
+        return 'PNG';
+      case 'jpg':
+      case 'jpeg':
+        return 'JPEG';
+      default:
+        return 'JPEG'; // Default fallback
+    }
   }
 
   async loadImages() {
@@ -69,30 +112,44 @@ class PDFGenerator {
       // Load terms page
       this.termsDataUrl = await this.imageToBase64('/images/Terms.jpg');
       
-      // Load company logos with error handling
-      const logoNames = ['aruba', 'araknis', 'cisco', 'hikvision', 'ubiquiti'];
-      for (const logoName of logoNames) {
+      // Get all image and logo paths dynamically from products data
+      const { images, logos } = this.getAllImagePaths();
+      
+      // Load company logos dynamically
+      for (const logoPath of logos) {
         try {
-          const logoImg = await this.imageToBase64(`/images/logos/${logoName}.png`);
+          // Convert relative path to absolute path for loading
+          const absoluteLogoPath = logoPath.startsWith('/') ? logoPath : `/images/${logoPath}`;
+          const logoImg = await this.imageToBase64(absoluteLogoPath);
           if (logoImg) {
-            this.companyLogos[`logos/${logoName}.png`] = logoImg;
+            this.companyLogos[logoPath] = logoImg;
+            console.log(`Loaded company logo: ${logoPath}`);
           }
         } catch (error) {
-          console.warn(`Failed to load logo ${logoName}:`, error);
+          console.warn(`Failed to load logo ${logoPath}:`, error);
         }
       }
       
-      // Load product images
-      const productImageNames = ['Product1.jpg', 'Product2.jpg', 'Product3.JPEG', 'Product4.jpg', 'Product5.jpg', 'Product6.jpg', 'Product7.jpg', 'Product8.jpg'];
-      for (const imageName of productImageNames) {
+      // Load product images dynamically
+      for (const imagePath of images) {
         try {
-          const productImg = await this.imageToBase64(`/images/${imageName}`);
+          // Convert relative path to absolute path for loading
+          let absoluteImagePath;
+          if (imagePath.startsWith('../images/')) {
+            absoluteImagePath = imagePath.replace('../images/', '/images/');
+          } else if (imagePath.startsWith('/')) {
+            absoluteImagePath = imagePath;
+          } else {
+            absoluteImagePath = `/images/${imagePath}`;
+          }
+          
+          const productImg = await this.imageToBase64(absoluteImagePath);
           if (productImg) {
-            this.productImages[`../images/${imageName}`] = productImg;
-            console.log(`Loaded product image: ${imageName}`);
+            this.productImages[imagePath] = productImg;
+            console.log(`Loaded product image: ${imagePath}`);
           }
         } catch (error) {
-          console.warn(`Failed to load product image ${imageName}:`, error);
+          console.warn(`Failed to load product image ${imagePath}:`, error);
         }
       }
     } catch (error) {
@@ -232,7 +289,7 @@ class PDFGenerator {
         maxHeight = Math.max(maxHeight, textHeight);
       } else if (typeof product.description === 'object') {
         // Calculate height for complex description with tighter spacing
-        let totalHeight = 2; // top padding
+        let totalHeight = 1; // top padding
         const { text, comment, logo } = product.description;
         const componentGap = 2; // Gap between components
         
@@ -248,7 +305,7 @@ class PDFGenerator {
           totalHeight += 6 + componentGap; // Logo height (6) + gap
         }
         
-        totalHeight += 2; // bottom padding
+        totalHeight += 1; // bottom padding
         maxHeight = Math.max(maxHeight, totalHeight);
       }
     }
@@ -377,7 +434,7 @@ class PDFGenerator {
       const rowHeightsForThisPage = rowHeights.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
       
       // Capture the current index for use in closures
-      const pageProductStartIndex = currentProductIndex;
+      // const pageProductStartIndex = currentProductIndex;
       const categoryProductsForThisPage = categoryProducts.slice(currentProductIndex, currentProductIndex + rowsOnThisPage);
       
       // Track which rows have had lines drawn to prevent duplicates
@@ -396,9 +453,9 @@ class PDFGenerator {
         columnStyles: {
           0: { cellWidth: 48.8, halign: 'center', valign: 'middle' }, // Item column
           1: { cellWidth: 80, halign: 'center', valign: 'top', overflow: 'linebreak' }, // Description - reduced
-          2: { cellWidth: 34.2, halign: 'center', valign: 'middle' }, // Item Price - increased
-          3: { cellWidth: 11.6, halign: 'center', valign: 'middle' }, // Qty
-          4: { cellWidth: 29.4, halign: 'center', valign: 'middle' }  // Total
+          2: { cellWidth: 34.2, halign: 'center', valign: 'top' }, // Item Price - increased
+          3: { cellWidth: 11.6, halign: 'center', valign: 'top' }, // Qty
+          4: { cellWidth: 29.4, halign: 'center', valign: 'top' }  // Total
         },
         headStyles: {
           fillColor: [255, 255, 255],
@@ -610,7 +667,7 @@ class PDFGenerator {
     let currentY = cellY + topPadding;
     
     // Render each component sequentially with minimal spacing
-    components.forEach((component, index) => {
+    components.forEach((component) => {
       
       if (component.type === 'text') {
         this.doc.setFontSize(11);
@@ -649,7 +706,10 @@ class PDFGenerator {
             const logoX = cellX + (cellWidth - logoWidth) / 2;
             const logoY = currentY;
             
-            this.doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+            // Dynamically detect image format from the logo path
+            const imageFormat = this.getImageFormat(component.content);
+            
+            this.doc.addImage(logoImg, imageFormat, logoX, logoY, logoWidth, logoHeight);
             currentY += logoHeight + componentGap;
           } catch (e) {
             console.error(`Error adding company logo ${component.content}:`, e);
@@ -657,7 +717,8 @@ class PDFGenerator {
             this.doc.setFontSize(9);
             this.doc.setFont('helvetica', 'italic');
             this.doc.setTextColor(58, 25, 82);
-            this.doc.text(component.content.replace('logos/', '').replace('.png', ''), cellX + cellWidth / 2, currentY + 4, { align: 'center' });
+            const logoName = component.content.replace('logos/', '').replace(/\.(png|jpg|jpeg)$/i, '');
+            this.doc.text(logoName, cellX + cellWidth / 2, currentY + 4, { align: 'center' });
             currentY += 8 + componentGap;
           }
         } else {
@@ -665,7 +726,7 @@ class PDFGenerator {
           this.doc.setFontSize(9);
           this.doc.setFont('helvetica', 'italic');
           this.doc.setTextColor(58, 25, 82);
-          const logoName = component.content.replace('logos/', '').replace('.png', '');
+          const logoName = component.content.replace('logos/', '').replace(/\.(png|jpg|jpeg)$/i, '');
           this.doc.text(logoName, cellX + cellWidth / 2, currentY + 4, { align: 'center' });
           currentY += 8 + componentGap;
         }
