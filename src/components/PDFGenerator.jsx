@@ -722,8 +722,8 @@ class PDFGenerator {
       tableWidth: tableWidth,
       columnStyles: {
         0: { cellWidth: 70, halign: 'center', valign: 'middle' }, // Item column - expanded
-        1: { cellWidth: 74, halign: 'center', valign: 'middle' }, // Description column - reduced
-        2: { cellWidth: 60, halign: 'center', valign: 'top' }  // Item Price column - adjusted
+        1: { cellWidth: 94, halign: 'center', valign: 'middle' }, // Description column - reduced
+        2: { cellWidth: 40, halign: 'right', valign: 'middle', cellPadding: { top: 7, right: 8, bottom: 7, left: 3 } }  // Item Price column with more right padding
       },
       headStyles: {
         fillColor: [255, 255, 255],
@@ -742,9 +742,9 @@ class PDFGenerator {
         textColor: [0, 0, 0],
         lineColor: [255, 255, 255],
         lineWidth: 0,
-        cellPadding: { top: 8, right: 3, bottom: 8, left: 3 },
+        cellPadding: { top:7, right: 3, bottom: 7, left: 3 },
         fillColor: [255, 255, 255]
-      },
+      },  
       alternateRowStyles: {
         fillColor: [255, 255, 255]
       },
@@ -796,7 +796,7 @@ class PDFGenerator {
     
     // Calculate positions to align with table columns
     const totalLabelX = this.pageWidth - this.margins.right - 55;
-    const totalAmountX = this.pageWidth - this.margins.right - 3;
+    const totalAmountX = this.pageWidth - this.margins.right - 8;
     
     this.doc.text('Total For Labor', totalLabelX, this.currentY, { align: 'right' });
     this.doc.text(this.formatNumber(laborTotal) + ' ILS', totalAmountX, this.currentY, { align: 'right' });
