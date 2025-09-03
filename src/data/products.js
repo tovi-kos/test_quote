@@ -281,10 +281,24 @@ export const data = {
     }
   ],
   discountPercentage: 5.4,
-  paymentTerms: {
-    percentageUpfront: 20,
-    descriptionPayment: 'Due Upon Proposal Acceptance'
-  },
+  paymentTerms: [
+    {
+      percentageUpfront: 20,
+      descriptionPayment: 'Due Upon Proposal Acceptance'
+    },
+    {
+      percentageUpfront: 25,
+      descriptionPayment: 'Due Upon Start Of Prewiring'
+    },
+    {
+      percentageUpfront: 40,
+      descriptionPayment: 'Due Upon Start Of Trim Out'
+    },
+    {
+      percentageUpfront: 15,
+      descriptionPayment: 'Due Upon Job Completion'
+    }
+  ],
   monthlyPayments: {}
 };
 

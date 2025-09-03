@@ -771,6 +771,212 @@ class PDFGenerator {
     this.currentY += 15;
   }
 
+  addFinancialSummaryPage() {
+    // Add header
+    this.addHeader();
+    
+    // Add section header for Financial Summary
+    this.addSectionHeader('Financial Summary');
+    
+    // Calculate all totals needed for the page
+    const categories = getUniqueCategories();
+    const categoryTotals = {};
+    let grandTotal = 0;
+    
+    // Calculate category totals
+    categories.forEach(category => {
+      const total = getCategoryTotal(category);
+      categoryTotals[category] = total;
+      grandTotal += total;
+    });
+    
+    // Add labor total
+    const laborTotal = getTotalLabor();
+    grandTotal += laborTotal;
+    
+    // Calculate discount amount
+    const discountAmount = (grandTotal * data.discountPercentage) / 100;
+    const finalTotal = grandTotal - discountAmount;
+    
+    // Start displaying the financial summary - move table higher
+    this.currentY += 5;
+    
+    // Add category totals - mapping to the image labels
+    const categoryMapping = {
+      'Network Equipment': 'Network',
+      'Power Systems': 'Alarm System', 
+      'Cooling & Ventilation': 'Cameras',
+      'Wireless Equipment': 'Audio & Video',
+      'Installation Services': 'Access control',
+      'Smart Home': 'Home Automation',
+      'Security Equipment': 'Lighting Control'
+    };
+    
+    // Prepare table data for Financial Summary including Proposal Total
+    const summaryData = [];
+    
+    // Add categories
+    categories.forEach(category => {
+      const displayName = categoryMapping[category.trim()] || category;
+      const total = categoryTotals[category];
+      summaryData.push([displayName, this.formatNumber(total) + ' ILS']);
+    });
+    
+    // Add Labor
+    summaryData.push(['Labor', this.formatNumber(laborTotal) + ' ILS']);
+    
+    // Add Special Discount with negative amount
+    summaryData.push([`Special Discount ${data.discountPercentage}%`, '-' + this.formatNumber(discountAmount) + ' ILS']);
+    
+    // Create right-aligned borderless table
+    autoTable(this.doc, {
+      body: summaryData,
+      startY: this.currentY,
+      margin: { left: this.pageWidth * 0.4, right: this.margins.right }, // Right-aligned table
+      tableWidth: this.pageWidth * 0.6 - this.margins.right,
+      columnStyles: {
+        0: { halign: 'right', valign: 'middle', fontStyle: 'bold' }, // Name column
+        1: { halign: 'right', valign: 'middle', fontStyle: 'bold' }  // Amount column
+      },
+      bodyStyles: {
+        fontSize: 11, // Reduced from 11 to 10
+        font: 'helvetica',
+        fontStyle: 'bold',
+        textColor: [0, 0, 0], // All text in black
+        lineColor: [255, 255, 255], // No lines
+        lineWidth: 0,
+        cellPadding: { top: 3, right: 5, bottom: 3, left: 5 }, // Reduced padding for tighter spacing
+        fillColor: [255, 255, 255] // White background
+      },
+      theme: 'plain', // No borders
+      showHead: false, // No header row
+      styles: {
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'right',
+        valign: 'middle',
+        fontStyle: 'bold'
+      }
+    });
+    
+    this.currentY = this.doc.lastAutoTable.finalY + 8;
+    
+    // Calculate gray line positioning (75% width, starting from right with 5px margin)
+    const separatorY = this.currentY;
+    const lineEndX = this.pageWidth - this.margins.right - 5; // 5px margin from right
+    const lineWidth = this.pageWidth * 0.75; // 75% of page width
+    const lineStartX = lineEndX - lineWidth;
+    
+    // Add thicker, lighter gray separator line
+    this.doc.setDrawColor(180, 180, 180); // Lighter gray
+    this.doc.setLineWidth(1.0); // Thicker line
+    this.doc.line(lineStartX, separatorY, lineEndX, separatorY);
+    
+    // VAT text above the line, aligned with line start - positioned just above the line
+    this.doc.setFontSize(12); // Increased from 10 to 12 for better visibility
+    this.doc.setFont('helvetica', 'bold'); // Changed to normal weight to match the reference image
+    this.doc.setTextColor(130, 130, 130); // Lighter gray as requested
+    this.doc.text('The total price does not include VAT', lineStartX, separatorY - 1.5, { align: 'left' }); // Positioned just above the line
+    
+    // Add Proposal Total to the main table as the last row with reduced spacing
+    this.currentY += 3;
+    
+    // Create a separate table for Proposal Total with larger font
+    autoTable(this.doc, {
+      body: [['Proposal Total', this.formatNumber(finalTotal) + ' ILS']],
+      startY: this.currentY,
+      margin: { left: this.pageWidth * 0.4, right: this.margins.right },
+      tableWidth: this.pageWidth * 0.6 - this.margins.right,
+      columnStyles: {
+        0: { halign: 'right', valign: 'middle', fontStyle: 'bold' },
+        1: { halign: 'right', valign: 'middle', fontStyle: 'bold' }
+      },
+      bodyStyles: {
+        fontSize: 14, // Slightly larger for Proposal Total
+        font: 'helvetica',
+        fontStyle: 'bold',
+        textColor: [0, 0, 0],
+        lineColor: [255, 255, 255],
+        lineWidth: 0,
+        cellPadding: { top: 0, right: 5, bottom: 3, left: 5 },
+        fillColor: [255, 255, 255]
+      },
+      theme: 'plain',
+      showHead: false,
+      styles: {
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'right',
+        valign: 'middle',
+        fontStyle: 'bold'
+      }
+    });
+    
+    this.currentY = this.doc.lastAutoTable.finalY;
+    
+    this.currentY += 30; // Space before payment schedule
+    
+    // Add Payment Schedule section
+    this.addPaymentScheduleTable(finalTotal);
+  }
+
+  addPaymentScheduleTable(proposalTotal) {
+    this.doc.setFontSize(12);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(0, 0, 0);
+    
+    // Payment Schedule title
+    this.doc.text('Payment Schedule', this.pageWidth / 2, this.currentY, { align: 'center' });
+    this.currentY += 15;
+    
+    // Prepare payment table data
+    const paymentData = data.paymentTerms.map((payment, index) => [
+      `Payment ${index + 1}`,
+      `${payment.percentageUpfront}% of Proposal Total`,
+      this.formatNumber((proposalTotal * payment.percentageUpfront) / 100) + ' ILS',
+      payment.descriptionPayment
+    ]);
+    
+    // Add payment schedule table
+    autoTable(this.doc, {
+      head: [['', '', '', '']],
+      body: paymentData,
+      startY: this.currentY,
+      margin: { left: this.margins.left + 10, right: this.margins.right + 10 },
+      tableWidth: this.pageWidth - this.margins.left - this.margins.right - 20,
+      columnStyles: {
+        0: { cellWidth: 25, halign: 'center', valign: 'middle' },
+        1: { cellWidth: 50, halign: 'center', valign: 'middle' },
+        2: { cellWidth: 30, halign: 'center', valign: 'middle' },
+        3: { cellWidth: 75, halign: 'center', valign: 'middle' }
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [255, 255, 255], // Hide header text
+        lineColor: [0, 0, 0],
+        lineWidth: 1
+      },
+      bodyStyles: {
+        fontSize: 10,
+        font: 'helvetica',
+        textColor: [0, 0, 0],
+        lineColor: [0, 0, 0],
+        lineWidth: 1,
+        cellPadding: { top: 8, right: 4, bottom: 8, left: 4 },
+        fillColor: [255, 255, 255]
+      },
+      theme: 'grid',
+      styles: {
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'center',
+        valign: 'middle'
+      }
+    });
+    
+    this.currentY = this.doc.lastAutoTable.finalY + 10;
+  }
+
   addFooter(pageNum, totalPages) {
     const footerY = this.pageHeight - 23;
     
@@ -833,6 +1039,11 @@ class PDFGenerator {
       this.doc.addPage();
       this.currentY = this.margins.top;
       this.addLaborPage();
+      
+      // Add Financial Summary page after Labor page
+      this.doc.addPage();
+      this.currentY = this.margins.top;
+      this.addFinancialSummaryPage();
       
       // Add footer to all pages except the first page
       const totalPages = this.doc.internal.getNumberOfPages();
