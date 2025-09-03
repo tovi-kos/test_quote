@@ -6,7 +6,14 @@
       "Bash(npm run build:*)",
       "Bash(npm run dev:*)",
       "mcp__playwright__browser_click",
-      "mcp__playwright__browser_handle_dialog"
+      "mcp__playwright__browser_handle_dialog",
+      "mcp__playwright__browser_navigate",
+      "Bash(start \"C:\\Users\\תכנות\\Desktop\\test_quotation\\.playwright-mcp\\Quote-2025-09-03T09-37-48.pdf\")",
+      "Bash(start \"C:\\Users\\תכנות\\Desktop\\test_quotation\\.playwright-mcp\\Quote-2025-09-03T09-47-07.pdf\")",
+      "mcp__playwright__browser_console_messages",
+      "Bash(start \"C:\\Users\\תכנות\\Desktop\\test_quotation\\.playwright-mcp\\Quote-2025-09-03T10-08-15.pdf\")",
+      "Bash(start \"C:\\Users\\תכנות\\Desktop\\test_quotation\\.playwright-mcp\\Quote-2025-09-03T10-14-26.pdf\")",
+      "Bash(start \"C:\\Users\\תכנות\\Desktop\\test_quotation\\.playwright-mcp\\Quote-2025-09-03T10-30-42.pdf\")"
     ],
     "deny": [],
     "ask": []

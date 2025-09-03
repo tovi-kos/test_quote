@@ -914,58 +914,56 @@ class PDFGenerator {
     
     this.currentY = this.doc.lastAutoTable.finalY;
     
-    this.currentY += 30; // Space before payment schedule
+    this.currentY += 20; // Increased space before payment schedule
     
     // Add Payment Schedule section
     this.addPaymentScheduleTable(finalTotal);
   }
 
   addPaymentScheduleTable(proposalTotal) {
-    this.doc.setFontSize(12);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.setTextColor(0, 0, 0);
-    
-    // Payment Schedule title
+    // Payment Schedule title - light gray Georgia font
+    this.doc.setFontSize(22);
+    this.doc.setFont('Georgia', 'bold');
+    this.doc.setTextColor(128, 128, 128); // Gray #808080
     this.doc.text('Payment Schedule', this.pageWidth / 2, this.currentY, { align: 'center' });
-    this.currentY += 15;
+    this.currentY += 3; // Reduced spacing
     
     // Prepare payment table data
     const paymentData = data.paymentTerms.map((payment, index) => [
       `Payment ${index + 1}`,
-      `${payment.percentageUpfront}% of Proposal Total`,
+      `${payment.percentageUpfront}% of Proposal Total • `,
       this.formatNumber((proposalTotal * payment.percentageUpfront) / 100) + ' ILS',
       payment.descriptionPayment
     ]);
     
-    // Add payment schedule table
+    // Dynamic margins - approximately 6% of page width (gives ~12.6mm on A4)
+    const marginPercent = 0.06;
+    const tableMargin = this.pageWidth * marginPercent;
+    const tableWidth = this.pageWidth - (tableMargin * 2);
+    
+    // Add payment schedule table with custom styling
     autoTable(this.doc, {
-      head: [['', '', '', '']],
       body: paymentData,
       startY: this.currentY,
-      margin: { left: this.margins.left + 10, right: this.margins.right + 10 },
-      tableWidth: this.pageWidth - this.margins.left - this.margins.right - 20,
+      margin: { left: tableMargin, right: tableMargin },
+      tableWidth: tableWidth,
       columnStyles: {
-        0: { cellWidth: 25, halign: 'center', valign: 'middle' },
-        1: { cellWidth: 50, halign: 'center', valign: 'middle' },
-        2: { cellWidth: 30, halign: 'center', valign: 'middle' },
-        3: { cellWidth: 75, halign: 'center', valign: 'middle' }
-      },
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [255, 255, 255], // Hide header text
-        lineColor: [0, 0, 0],
-        lineWidth: 1
+        0: { cellWidth: tableWidth * 0.18, halign: 'right', valign: 'middle', fontStyle: 'normal' }, // Wider payment column
+        1: { cellWidth: tableWidth * 0.29, halign: 'left', valign: 'middle', fontStyle: 'bold' }, // ~50 units
+        2: { cellWidth: tableWidth * 0.175, halign: 'left', valign: 'middle', fontStyle: 'bold' }, // ~30 units
+        3: { cellWidth: tableWidth * 0.405, halign: 'left', valign: 'middle', fontStyle: 'normal' } // Narrower description column
       },
       bodyStyles: {
         fontSize: 10,
         font: 'helvetica',
         textColor: [0, 0, 0],
-        lineColor: [0, 0, 0],
-        lineWidth: 1,
-        cellPadding: { top: 8, right: 4, bottom: 8, left: 4 },
+        lineColor: [255, 255, 255], // Hide autoTable's automatic borders
+        lineWidth: 0, // Disable all autoTable borders
+        cellPadding: { top: 3, right: 4, bottom: 3, left: 4 }, // Reduced height
         fillColor: [255, 255, 255]
       },
-      theme: 'grid',
+      theme: 'plain',
+      showHead: false, // No header
       styles: {
         overflow: 'linebreak',
         cellWidth: 'wrap',
@@ -973,6 +971,37 @@ class PDFGenerator {
         valign: 'middle'
       }
     });
+    
+    // Draw borders AFTER the table is complete
+    const tableInfo = this.doc.lastAutoTable;
+    
+    // Set line properties - gray #A5A4A4
+    this.doc.setDrawColor(165, 164, 164);
+    this.doc.setLineWidth(0.8);
+    
+    // Calculate table boundaries
+    const tableLeft = tableMargin;
+    const tableRight = this.pageWidth - tableMargin;
+    const tableTop = this.currentY; // Use the start Y position we set
+    const tableBottom = tableInfo.finalY;
+    
+    // Draw outer frame
+    this.doc.line(tableLeft, tableTop, tableRight, tableTop); // Top
+    this.doc.line(tableLeft, tableBottom, tableRight, tableBottom); // Bottom
+    this.doc.line(tableLeft, tableTop, tableLeft, tableBottom); // Left
+    this.doc.line(tableRight, tableTop, tableRight, tableBottom); // Right
+    
+    // Draw horizontal lines between rows
+    // We know there are 4 payment terms, so 3 internal lines
+    // Calculate row height based on total table height
+    const tableHeight = tableBottom - tableTop;
+    const rowHeight = tableHeight / 4; // 4 rows
+    
+    // Draw 3 internal horizontal lines
+    for (let i = 1; i < 4; i++) {
+      const lineY = tableTop + (rowHeight * i);
+      this.doc.line(tableLeft, lineY, tableRight, lineY);
+    }
     
     this.currentY = this.doc.lastAutoTable.finalY + 10;
   }
