@@ -26,6 +26,7 @@ class PDFGenerator {
     this.logoDataUrl = null;
     this.logoAspectRatio = null; // Store aspect ratio for dynamic height
     this.firstPageDataUrl = null;
+    this.termsDataUrl = null;
   }
 
   async imageToBase64(url) {
@@ -64,6 +65,9 @@ class PDFGenerator {
       
       // Load first page
       this.firstPageDataUrl = await this.imageToBase64('/images/firstPage.jpeg');
+      
+      // Load terms page
+      this.termsDataUrl = await this.imageToBase64('/images/Terms.jpg');
       
       // Load company logos with error handling
       const logoNames = ['aruba', 'araknis', 'cisco', 'hikvision', 'ubiquiti'];
@@ -150,6 +154,35 @@ class PDFGenerator {
     }
     
     this.doc.addPage();
+  }
+
+  addTermsPage() {
+    if (this.termsDataUrl) {
+      try {
+        // Calculate image dimensions to fit full width while maintaining aspect ratio
+        const img = new Image();
+        img.src = this.termsDataUrl;
+        
+        // Full page width
+        const imageWidth = 210; // Full page width in mm
+        
+        // Calculate proportional height based on image aspect ratio
+        const aspectRatio = img.height / img.width;
+        const imageHeight = imageWidth * aspectRatio;
+        
+        // Position at top of page (x=0, y=0) with full width and proportional height
+        this.doc.addImage(this.termsDataUrl, 'JPEG', 0, 0, imageWidth, imageHeight);
+      } catch (e) {
+        console.error('Error adding terms page image:', e);
+        // Fallback: try to add image with estimated proportions
+        try {
+          // Assuming a typical aspect ratio for the terms image based on what we saw
+          this.doc.addImage(this.termsDataUrl, 'JPEG', 0, 0, 210, 250); // Leave ~47mm for footer
+        } catch (fallbackError) {
+          console.error('Fallback terms page image failed:', fallbackError);
+        }
+      }
+    }
   }
 
   addSectionHeader(sectionName) {
@@ -1074,11 +1107,15 @@ class PDFGenerator {
       this.currentY = this.margins.top;
       this.addFinancialSummaryPage();
       
+      // Add Terms & Conditions page after Financial Summary
+      this.doc.addPage();
+      this.addTermsPage();
+      
       // Add footer to all pages except the first page
       const totalPages = this.doc.internal.getNumberOfPages();
       for (let i = 2; i <= totalPages; i++) {
         this.doc.setPage(i);
-        this.addFooter(i - 1, totalPages - 1);
+        this.addFooter(i - 1, totalPages - 1); // Exclude only the first page from count
       }
       console.log('Footers added');
       
